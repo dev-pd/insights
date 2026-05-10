@@ -3,6 +3,7 @@ import "./globals.css"
 import { Geist } from "next/font/google"
 
 import { Navbar } from "@/components/shared/Navbar"
+import { ToastStack } from "@/components/shared/ToastStack"
 import { cn } from "@/lib/utils"
 import { common } from "@/locales/en/common"
 
@@ -23,6 +24,7 @@ export default function RootLayout({
       <body className="bg-background text-foreground min-h-screen">
         <Navbar />
         {children}
+        <ToastStack />
       </body>
     </html>
   )
