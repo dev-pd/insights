@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings, get_settings
 from app.db import get_session
 from app.repositories.feedback_repository import FeedbackRepository
+from app.repositories.llm_usage_repository import LlmUsageRepository
 from app.services.feedback_service import FeedbackService
 from app.services.stats_service import StatsService
 from app.services.summary_service import SummaryService
@@ -22,8 +23,20 @@ async def get_feedback_repository(session: SessionDep) -> FeedbackRepository:
 FeedbackRepoDep = Annotated[FeedbackRepository, Depends(get_feedback_repository)]
 
 
-async def get_feedback_service(repo: FeedbackRepoDep) -> FeedbackService:
-    return FeedbackService(repo)
+async def get_llm_usage_repository(session: SessionDep) -> LlmUsageRepository:
+    return LlmUsageRepository(session)
+
+
+LlmUsageRepoDep = Annotated[
+    LlmUsageRepository, Depends(get_llm_usage_repository)
+]
+
+
+async def get_feedback_service(
+    repo: FeedbackRepoDep,
+    llm_usage_repo: LlmUsageRepoDep,
+) -> FeedbackService:
+    return FeedbackService(repo, llm_usage_repo)
 
 
 FeedbackServiceDep = Annotated[FeedbackService, Depends(get_feedback_service)]
@@ -59,9 +72,10 @@ RedisDep = Annotated[redis_async.Redis, Depends(get_redis)]
 
 async def get_summary_service(
     repo: FeedbackRepoDep,
+    llm_usage_repo: LlmUsageRepoDep,
     redis_client: RedisDep,
 ) -> SummaryService:
-    return SummaryService(repo, redis_client)
+    return SummaryService(repo, llm_usage_repo, redis_client)
 
 
 SummaryServiceDep = Annotated[SummaryService, Depends(get_summary_service)]

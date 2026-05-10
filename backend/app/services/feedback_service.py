@@ -1,12 +1,13 @@
 import logging
 from typing import Literal
 
-from app.constants import FeedbackStatus
+from app.constants import FeedbackStatus, LlmCallType
 from app.exceptions import LLMError
 from app.llm.extract import extract_insights
 from app.llm.validate import validate_feedback
 from app.models.feedback import Feedback
 from app.repositories.feedback_repository import FeedbackRepository
+from app.repositories.llm_usage_repository import LlmUsageRepository
 
 log = logging.getLogger(__name__)
 
@@ -19,8 +20,13 @@ class FeedbackService:
     dispatch boundary that won't change shape.
     """
 
-    def __init__(self, repo: FeedbackRepository):
+    def __init__(
+        self,
+        repo: FeedbackRepository,
+        llm_usage_repo: LlmUsageRepository,
+    ):
         self.repo = repo
+        self.llm_usage_repo = llm_usage_repo
 
     async def create_feedback(self, text: str) -> Feedback:
         # Step 1: pre-LLM validation. Cheap rejections never hit Anthropic.
@@ -39,19 +45,22 @@ class FeedbackService:
         # Step 2: LLM extraction. Wrapper handles retries; LLMError on terminal.
         try:
             result, metadata = await extract_insights(text)
-        except LLMError as e:
+        except LLMError as error:
             log.error(
                 "feedback_extraction_failed",
-                extra={"error_type": type(e).__name__, "error": str(e)},
+                extra={"error_type": type(error).__name__, "error": str(error)},
             )
             return await self.repo.create(
                 text=text,
                 status=FeedbackStatus.FAILED,
-                llm_metadata={"error_type": type(e).__name__, "error": str(e)},
+                llm_metadata={
+                    "error_type": type(error).__name__,
+                    "error": str(error),
+                },
             )
 
         # Step 3: persist with extracted insights.
-        return await self.repo.create(
+        feedback = await self.repo.create(
             text=text,
             status=FeedbackStatus.EXTRACTED,
             sentiment=result.sentiment,
@@ -60,6 +69,21 @@ class FeedbackService:
             language=result.language,
             llm_metadata=metadata,
         )
+
+        # Step 4: record LLM usage. Done after persistence so we have feedback.id
+        # for the FK. The shared session means both writes commit together; if
+        # the request later fails, both rows roll back atomically.
+        await self.llm_usage_repo.record(
+            call_type=LlmCallType.EXTRACTION.value,
+            model=metadata.get("model", "unknown"),
+            input_tokens=metadata.get("input_tokens", 0),
+            output_tokens=metadata.get("output_tokens", 0),
+            latency_ms=metadata.get("latency_ms"),
+            prompt_version=metadata.get("prompt_version"),
+            feedback_id=feedback.id,
+        )
+
+        return feedback
 
     async def list_recent(self, limit: int) -> list[Feedback]:
         return await self.repo.list_recent(limit=limit)

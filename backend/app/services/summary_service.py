@@ -14,10 +14,12 @@ from typing import Any
 
 import redis.asyncio as redis_async
 
+from app.constants import LlmCallType
 from app.core.config import get_settings
 from app.exceptions import LLMError
 from app.llm.summarize import generate_summary
 from app.repositories.feedback_repository import FeedbackRepository
+from app.repositories.llm_usage_repository import LlmUsageRepository
 
 log = logging.getLogger(__name__)
 
@@ -26,8 +28,14 @@ SUMMARY_CACHE_KEY = "summary:current"
 
 
 class SummaryService:
-    def __init__(self, repo: FeedbackRepository, redis_client: redis_async.Redis):
+    def __init__(
+        self,
+        repo: FeedbackRepository,
+        llm_usage_repo: LlmUsageRepository,
+        redis_client: redis_async.Redis,
+    ):
         self.repo = repo
+        self.llm_usage_repo = llm_usage_repo
         self.redis = redis_client
 
     async def get_summary(self, force_refresh: bool = False) -> dict[str, Any]:
@@ -86,6 +94,20 @@ class SummaryService:
                 "error": str(error),
                 "metadata": None,
             }
+
+        # Record LLM usage. The "not enough data" path returns metadata with
+        # input_tokens=0 as a sentinel for "no actual call was made"; skip
+        # recording in that case so we don't inflate the dashboard count.
+        if metadata.get("input_tokens", 0) > 0:
+            await self.llm_usage_repo.record(
+                call_type=LlmCallType.SUMMARY.value,
+                model=metadata.get("model", "unknown"),
+                input_tokens=metadata.get("input_tokens", 0),
+                output_tokens=metadata.get("output_tokens", 0),
+                latency_ms=metadata.get("latency_ms"),
+                prompt_version=metadata.get("prompt_version"),
+                feedback_id=None,
+            )
 
         result: dict[str, Any] = {
             "text": summary_text,
