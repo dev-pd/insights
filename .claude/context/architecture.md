@@ -78,7 +78,7 @@ insights/
 │   │   ├── middleware.py           # RequestIDMiddleware, GlobalExceptionHandler
 │   │   ├── exceptions.py           # Custom exception hierarchy
 │   │   ├── deps.py                 # FastAPI dependency providers
-│   │   ├── db.py                   # Engine, Base, Feedback model, session factory ONLY (no queries)
+│   │   ├── db.py                   # Engine, Base, async session factory ONLY
 │   │   ├── constants.py            # FeedbackStatus, SkipReason StrEnums
 │   │   ├── schemas.py              # Pydantic request/response models
 │   │   ├── api/
@@ -87,6 +87,9 @@ insights/
 │   │   │   ├── stats.py            # GET /stats
 │   │   │   ├── events.py           # GET /events (SSE)
 │   │   │   └── health.py           # GET /health, GET /ready
+│   │   ├── models/
+│   │   │   ├── __init__.py
+│   │   │   └── feedback.py         # Feedback SQLAlchemy model
 │   │   ├── repositories/
 │   │   │   ├── __init__.py
 │   │   │   └── feedback_repository.py # Data access for Feedback entity
@@ -180,8 +183,12 @@ repositories/ → data access, hides SQLAlchemy specifics from services
 llm/          → LLM concerns, isolated from web layer
               → no knowledge of HTTP, DB, or repositories
 
-db.py         → SQLAlchemy engine, Base, models, async session factory ONLY
-              → no query functions, no business logic
+models/       → SQLAlchemy entity definitions, one file per entity
+              → imported by repositories
+              → never import from services, api, or repositories
+
+db.py         → SQLAlchemy engine, Base class, async session factory
+              → no models, no queries, no business logic
 ```
 
 ### Boundary rules
@@ -193,7 +200,9 @@ These are non-negotiable. They keep the codebase navigable and the LLM module po
 - `services/` **never** import SQLAlchemy directly. All data access through a repository.
 - `repositories/` are the only place SQLAlchemy queries live (besides `db.py` for engine setup).
 - `llm/` knows nothing about HTTP, DB, or repositories. Pure bounded context.
-- `db.py` exports engine, Base, models, and session factory. No queries, no business logic.
+- `db.py` exports engine, Base, and session factory ONLY. Models live in `models/`.
+- `models/` contains SQLAlchemy entity definitions. One model per file. Models import only `Base` from `db.py`.
+- `repositories/` import `Base`/session from `db.py` and entities from `models/`. They are the only consumers of `models/` outside of test code.
 
 ### Why these rules
 
