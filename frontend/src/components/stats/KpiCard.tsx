@@ -62,7 +62,11 @@ export function KpiCard({
             )}
           </div>
           {hint && (
-            <span className="text-[11px] text-muted-foreground truncate">
+            // No truncate — let long hints wrap to a second line rather than
+            // ellipsis away half the content. CSS grid aligns row heights to
+            // the tallest tile, so a 2-line hint on Total Feedback doesn't
+            // misalign the other 5 cards.
+            <span className="text-[11px] text-muted-foreground leading-snug">
               {hint}
             </span>
           )}
