@@ -35,6 +35,44 @@ def _sync_redis_client() -> redis_sync.Redis:
     return redis_sync.Redis.from_url(settings.redis_url, decode_responses=True)
 
 
+async def _mark_failed(
+    session,
+    redis_client: redis_sync.Redis,
+    feedback: Feedback,
+    error: Exception,
+    context: str,
+) -> None:
+    """Flip a row to FAILED with diagnostic metadata, then publish events.
+
+    Used by both the LLMError path (which then re-raises for autoretry) and
+    the broad-catch path (which re-raises so Celery records FAILURE).
+    Centralizes the row update + notify so we can't accidentally skip one.
+    """
+    log.exception(
+        "extraction_failed",
+        extra={
+            "feedback_id": feedback.id,
+            "error_type": type(error).__name__,
+            "context": context,
+        },
+    )
+    feedback.status = FeedbackStatus.FAILED.value
+    feedback.llm_metadata = {
+        "error_type": type(error).__name__,
+        "error": str(error),
+        "context": context,
+    }
+    await session.commit()
+
+    publish_feedback_event_sync(
+        redis_client,
+        feedback_id=feedback.id,
+        status=FeedbackStatus.FAILED.value,
+        payload={"error": str(error)},
+    )
+    publish_stats_invalidation_sync(redis_client)
+
+
 async def _do_extraction(feedback_id: int) -> dict:
     """Async core: load row, call Anthropic, update row, publish events."""
     redis_client = _sync_redis_client()
@@ -67,32 +105,34 @@ async def _do_extraction(feedback_id: int) -> dict:
         try:
             result, metadata = await extract_insights(feedback.text)
         except LLMError as error:
-            log.error(
-                "extraction_failed",
-                extra={
-                    "feedback_id": feedback_id,
-                    "error_type": type(error).__name__,
-                    "error": str(error),
-                },
-            )
-            feedback.status = FeedbackStatus.FAILED.value
-            feedback.llm_metadata = {
-                "error_type": type(error).__name__,
-                "error": str(error),
-                "context": "celery_task",
-            }
-            await session.commit()
-
-            publish_feedback_event_sync(
+            # Transient/known LLM failures — flip to FAILED, notify, re-raise
+            # so Celery's autoretry (LLMError ∈ autoretry_for) can pick it up.
+            await _mark_failed(
+                session,
                 redis_client,
-                feedback_id=feedback_id,
-                status=FeedbackStatus.FAILED.value,
-                payload={"error": str(error)},
+                feedback,
+                error,
+                context="celery_task_llm_error",
             )
-            publish_stats_invalidation_sync(redis_client)
-
-            # Re-raise so Celery's autoretry can kick in (LLMError is in
-            # autoretry_for). If retries are exhausted, the row stays FAILED.
+            raise
+        except Exception as error:  # noqa: BLE001 — last-line defense
+            # Any other exception bubbles up out of our LLM-aware handler.
+            # If we let it propagate without touching the row, the feedback
+            # stays in PROCESSING forever — that's the "orphan PROCESSING"
+            # class of bug. Flip to FAILED with diagnostic metadata first,
+            # THEN re-raise so Celery records the task FAILURE.
+            #
+            # NOTE: this Exception is NOT in autoretry_for, so Celery treats
+            # it as a permanent failure — no retry. That's correct: the
+            # things that get caught here (AttributeError, RuntimeError,
+            # KeyError, …) are our bugs, not transient network issues.
+            await _mark_failed(
+                session,
+                redis_client,
+                feedback,
+                error,
+                context="celery_task_uncaught",
+            )
             raise
 
         feedback.status = FeedbackStatus.EXTRACTED.value
