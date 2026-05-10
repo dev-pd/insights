@@ -1,22 +1,39 @@
-import { HealthCheck } from "@/components/shared/HealthCheck"
+"use client"
 
-export default function HomePage() {
+import { mutate } from "swr"
+
+import { FeedbackList } from "@/components/feedback/FeedbackList"
+import { PasteForm } from "@/components/feedback/PasteForm"
+import { HealthCheck } from "@/components/shared/HealthCheck"
+import { API_ROUTES } from "@/lib/api/routes"
+import type { Feedback } from "@/lib/api/types"
+import { common } from "@/locales/en/common"
+import { feedback as feedbackCopy } from "@/locales/en/feedback"
+
+export default function Home() {
+  const handleCreated = async (newFeedback: Feedback) => {
+    // Optimistic update: prepend the new row to the SWR cache without
+    // refetching. The list re-renders immediately; the next focus-trigger
+    // or page load revalidates from /api/v1/feedback.
+    await mutate<Feedback[]>(
+      API_ROUTES.feedback,
+      (current) => (current ? [newFeedback, ...current] : [newFeedback]),
+      { revalidate: false },
+    )
+  }
+
   return (
-    <main className="max-w-4xl mx-auto px-6 py-12">
-      <header className="mb-8">
-        <h1 className="text-3xl font-semibold mb-2">Feedback Insights</h1>
-        <p className="text-gray-600 mb-4">
-          LLM-powered customer feedback extraction and analytics
-        </p>
+    <main className="container mx-auto max-w-3xl px-4 py-8 flex flex-col gap-6">
+      <header className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">{common.app.title}</h1>
         <HealthCheck />
       </header>
 
-      <section className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-medium mb-2">Phase 1: plumbing</h2>
-        <p className="text-gray-600 text-sm">
-          Real features arrive in subsequent phases: paste form and extraction in Phase 2,
-          dashboard stats in Phase 3, async extraction with live updates in Phase 4.
-        </p>
+      <PasteForm onCreated={handleCreated} />
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-semibold">{feedbackCopy.list.title}</h2>
+        <FeedbackList />
       </section>
     </main>
   )
