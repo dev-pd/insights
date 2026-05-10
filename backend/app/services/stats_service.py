@@ -59,19 +59,23 @@ class StatsService:
             for theme, count in theme_counter.most_common(top_n)
         ]
 
-        # Daily sentiment trend over the configured window.
+        # Daily sentiment trend over the configured window, ending today (UTC).
         # Initialize every day in the window so the chart shows zeros, not gaps.
         now = datetime.now(timezone.utc)
-        cutoff = now - timedelta(days=trend_days)
+        today = now.date()
+        start_date = today - timedelta(days=trend_days - 1)
         trend_buckets: dict[str, dict[str, int]] = {}
         for i in range(trend_days):
-            day = (cutoff + timedelta(days=i)).date().isoformat()
+            day = (start_date + timedelta(days=i)).isoformat()
             trend_buckets[day] = {"positive": 0, "neutral": 0, "negative": 0}
 
+        cutoff_dt = datetime.combine(
+            start_date, datetime.min.time(), tzinfo=timezone.utc
+        )
         for _themes, sentiment, created_at in rows:
             if created_at is None or sentiment is None:
                 continue
-            if created_at < cutoff:
+            if created_at < cutoff_dt:
                 continue
             day = created_at.date().isoformat()
             if day in trend_buckets and sentiment in trend_buckets[day]:
