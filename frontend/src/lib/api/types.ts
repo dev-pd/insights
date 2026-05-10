@@ -74,6 +74,19 @@ export interface FeedbackBatchResponse {
   failed: number
 }
 
+export interface Summary {
+  text: string
+  /** ISO 8601 UTC timestamp. */
+  generated_at: string
+  feedback_count: number
+  /** True if returned from Redis cache, false if freshly generated. */
+  cached: boolean
+  /** Set when LLM generation failed; failures are NOT cached server-side. */
+  error?: string | null
+  /** LLM call metadata. Null on the "not enough data" path and on errors. */
+  metadata?: Record<string, unknown> | null
+}
+
 export interface ThemeCount {
   theme: string
   count: number

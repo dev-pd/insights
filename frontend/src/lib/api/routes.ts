@@ -7,4 +7,6 @@ export const API_ROUTES = {
   feedbackBatch: "/api/v1/feedback/batch",
   feedbackPaginated: "/api/v1/feedback/paginated",
   stats: "/api/v1/stats",
+  summary: "/api/v1/summary",
+  summaryRefresh: "/api/v1/summary/refresh",
 } as const

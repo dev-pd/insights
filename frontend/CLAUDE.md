@@ -30,10 +30,15 @@ frontend/src/
 
 ### Dashboard layout
 
-The home page (`/`) is the executive view — KPIs + charts only, no input forms. Composition:
+The home page (`/`) is the executive view — KPIs + AI summary + charts, no input forms. Composition (top → bottom):
 
 - **6 KPI cards** in a responsive grid: `grid-cols-2 sm:grid-cols-3 lg:grid-cols-6`. Order: Total feedback, Positive %, Negative %, This week (with WoW trend arrow), Avg latency, Total tokens.
-- **Two charts side-by-side** below the KPIs (`md:grid-cols-2`):
+- **AI summary widget** (Phase 3.4) — single Card sandwiched between KPIs and charts:
+  - Sources `GET /api/v1/summary` once per page; server owns freshness via Redis TTL so the frontend doesn't poll.
+  - Manual refresh hits `POST /api/v1/summary/refresh` and writes the fresh response back to the SWR cache via `mutate(fresh, { revalidate: false })`.
+  - Refresh failures surface as a toast (the existing `useToast` system) — never `console.log` in committed code.
+  - Footer line shows `Updated Xm ago` (or `just now`/`Xh ago`) plus a `· from cache` indicator when the payload came from cache.
+- **Two charts side-by-side** below the summary (`md:grid-cols-2`):
   - Top themes — horizontal bar, last 7 days, top 10. Reads from `data.top_themes` (already windowed and capped on the backend).
   - Sentiment trend — stacked bar, last 14 days. Reads from `data.sentiment_trend`.
 

@@ -41,6 +41,20 @@ export const stats = {
       negative: "Negative",
     },
   },
+  summary: {
+    title: "Today's summary",
+    refreshButton: "Refresh",
+    refreshing: "Refreshing...",
+    refreshFailed: "Refresh failed. Try again.",
+    updatedAgo: (minutes: number) => {
+      if (minutes < 1) return "Updated just now"
+      if (minutes < 60) return `Updated ${minutes}m ago`
+      const hours = Math.floor(minutes / 60)
+      return `Updated ${hours}h ago`
+    },
+    error: "Could not load summary. Try refreshing.",
+    fromCache: "from cache",
+  },
   units: {
     ms: "ms",
     tokens: "tokens",

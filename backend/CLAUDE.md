@@ -255,6 +255,33 @@ where `total = extracted + skipped + failed`.
 
 **Why `count_in_window` uses a half-open interval `[start, end)`:** so back-to-back windows can't double-count the boundary instant. Used by `weekly_delta` for the (now - 14d) → (now - 7d) and (now - 7d) → (now) ranges.
 
+### Summary endpoints (Phase 3.4)
+
+`GET /v1/summary` returns the dashboard AI summary, served from a Redis cache when available. `POST /v1/summary/refresh` deletes the cache key, regenerates, and writes the fresh result back. Both endpoints return the same `SummaryOut` shape:
+
+```json
+{
+  "text": "...",
+  "generated_at": "2026-05-10T12:13:25.000Z",
+  "feedback_count": 42,
+  "cached": true,
+  "error": null,
+  "metadata": { "input_tokens": 2616, "output_tokens": 94, "latency_ms": 2107, ... }
+}
+```
+
+**Cache strategy:** single key `summary:current` with TTL = `settings.summary_cache_ttl_seconds` (default 3600). On hit, return with `cached=True`. On miss, generate via `app.llm.summarize.generate_summary` and write back. Refresh deletes first, then generates.
+
+**LLM failures are NOT cached.** A bad minute at Anthropic shouldn't lock the dashboard into "broken" for a full TTL — the next request retries. The error path returns a payload with `cached=false`, `error="..."`, no Redis write.
+
+**The `summary_min_feedback_items` floor (default 3):** below this, `generate_summary` short-circuits with a static "not enough data" message rather than burning a call on a thin sample. The model would otherwise produce useless output ("There is one positive feedback about shipping").
+
+**Why a separate prompt family (`summary_v1`, not `v1`):** different concern (aggregate analysis vs per-item extraction), different versioning so the two iterate independently. Prompt files in `app/llm/prompts/` are kept indefinitely so traces of past summaries can be reproduced from the `prompt_version` metadata field.
+
+**Why no tool_use forcing here:** we want plain prose, not a JSON schema. `extract.py` forces tool_use because the downstream code reads structured fields; `summarize.py` reads text content directly.
+
+**Phase 4 graduation:** Celery Beat adds scheduled regeneration so the dashboard never has cold-cache loads. The `SummaryService.get_summary` shape is the dispatch boundary that won't change — only the trigger.
+
 ## Database indexes
 
 All queryable columns have explicit indexes in the SQLAlchemy model. `Feedback` table indexes:

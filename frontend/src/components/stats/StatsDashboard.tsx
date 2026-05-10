@@ -12,6 +12,7 @@ import { stats as statsCopy } from "@/locales/en/stats"
 
 import { KpiCard, type KpiTrend } from "./KpiCard"
 import { SentimentTrendChart } from "./SentimentTrendChart"
+import { SummaryWidget } from "./SummaryWidget"
 import { ThemeFrequencyChart } from "./ThemeFrequencyChart"
 
 const KPI_COUNT = 6
@@ -58,6 +59,7 @@ export function StatsDashboard() {
             <Skeleton key={index} className="h-20 w-full" />
           ))}
         </div>
+        <Skeleton className="h-32 w-full" />
         <div className="grid md:grid-cols-2 gap-4">
           <Skeleton className="h-72 w-full" />
           <Skeleton className="h-72 w-full" />
@@ -130,6 +132,8 @@ export function StatsDashboard() {
           )}
         />
       </div>
+
+      <SummaryWidget />
 
       <div className="grid md:grid-cols-2 gap-4">
         <ThemeFrequencyChart themes={data.top_themes} />
