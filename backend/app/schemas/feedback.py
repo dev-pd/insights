@@ -19,14 +19,8 @@ class FeedbackOut(BaseModel):
     updated_at: datetime | None = None
 
 
-class HealthResponse(BaseModel):
-    status: str
-
-
-class ReadyResponse(BaseModel):
-    status: str
-    database: bool
-    redis: bool
+class FeedbackListResponse(BaseModel):
+    items: list[FeedbackOut]
 
 
 class ErrorResponse(BaseModel):
