@@ -267,6 +267,24 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 - Sessions never escape the request context. No global sessions.
 - Background tasks (Celery) get their own session via the same factory, scoped to the task.
 
+## Connection pooling
+
+The async engine is created with explicit pool settings:
+
+```python
+engine = create_async_engine(
+    settings.database_url,
+    pool_size=settings.db_pool_size,         # default 10
+    max_overflow=settings.db_max_overflow,   # default 20
+    pool_pre_ping=True,                      # validates connection before use
+    echo=False,
+)
+```
+
+`pool_pre_ping=True` issues a lightweight `SELECT 1` before handing a pooled connection to a request. This prevents stale-connection errors when Postgres drops idle connections (a real failure mode after long-lived processes survive a DB restart or cloud network blip). The cost is one extra round-trip per checkout; the benefit is no surprise `OperationalError` on the first query of an idle worker.
+
+`pool_size` is the steady-state pool; `max_overflow` allows temporary growth under load. Both come from Settings so they tune per environment without code changes.
+
 ## Concurrency patterns
 
 ### Bounded parallelism
@@ -388,6 +406,26 @@ async def call_llm(client: AsyncAnthropic, request_id: str, **kwargs) -> str:
     })
     raise last_error or LLMError("All retries exhausted")
 ```
+
+## Graceful shutdown
+
+Two processes need shutdown discipline: the FastAPI app and the Celery worker.
+
+**FastAPI** handles graceful shutdown automatically via the lifespan protocol. On `SIGTERM`, uvicorn stops accepting new connections, waits for in-flight requests to finish, then exits. No application-level work needed beyond using the lifespan context manager.
+
+**Celery worker** uses two timeouts plus signal handling:
+
+- `--soft-time-limit=N` — raises `SoftTimeLimitExceeded` inside the task at N seconds, giving the task a chance to clean up (commit a partial state, log a warning, mark feedback failed).
+- `--time-limit=M` — hard kill at M seconds (M > N). The worker is forcibly terminated for that task slot.
+- On `SIGTERM`, Celery finishes the currently-executing task before exiting (warm shutdown), provided the task completes within its time limit. New tasks in the queue stay queued until another worker picks them up.
+
+Configure via `celery_worker.sh`:
+
+```bash
+celery -A app.tasks worker --soft-time-limit=120 --time-limit=180 --loglevel=info
+```
+
+The 120/180 split means: a task gets 2 minutes, with 1 minute of warning before the hard kill. For LLM extraction with 30s per-call timeout and up to 3 retries, this is a comfortable ceiling.
 
 ## Testing patterns
 
