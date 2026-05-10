@@ -3,7 +3,7 @@ from enum import StrEnum
 
 class FeedbackStatus(StrEnum):
     PROCESSING = "processing"
-    COMPLETED = "completed"
+    EXTRACTED = "extracted"
     SKIPPED = "skipped"
     FAILED = "failed"
 
