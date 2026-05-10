@@ -21,7 +21,7 @@ export default function AddFeedbackPage() {
   }
 
   return (
-    <main className="container mx-auto max-w-3xl px-4 py-8 flex flex-col gap-6">
+    <main className="container mx-auto max-w-5xl px-4 py-8 flex flex-col gap-6">
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-bold">{addFeedback.page.title}</h1>
         <p className="text-sm text-muted-foreground">
