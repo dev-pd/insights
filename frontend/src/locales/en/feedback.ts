@@ -92,15 +92,14 @@ export const feedback = {
   toast: {
     submitting: (count: number) =>
       count === 1 ? "Submitting feedback..." : `Submitting ${count} items...`,
-    successSingle: "Feedback added",
-    successMultiple: (added: number, extracted: number, skipped: number) => {
-      const parts = [`${added} added`]
-      if (extracted < added) {
-        parts.push(`${extracted} extracted`)
-        if (skipped > 0) parts.push(`${skipped} skipped`)
-      }
-      return parts.join(", ")
-    },
+    // Phase 4: extraction is async, so submission only confirms the row
+    // was queued. The user sees the real result land on /feedback as the
+    // worker completes (via SSE).
+    successSingle: "Feedback queued for processing",
+    successMultiple: (count: number) =>
+      count === 1
+        ? "1 item queued for processing"
+        : `${count} items queued for processing`,
     error: "Could not submit feedback. Please try again.",
   },
 } as const

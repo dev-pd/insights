@@ -99,14 +99,9 @@ export function PasteForm({ onCreated }: PasteFormProps) {
           onCreated(item)
         }
         setText("")
-        showToast(
-          feedbackCopy.toast.successMultiple(
-            result.total,
-            result.extracted,
-            result.skipped,
-          ),
-          { variant: "success" },
-        )
+        showToast(feedbackCopy.toast.successMultiple(result.total), {
+          variant: "success",
+        })
       }
     } catch (error) {
       const message =
