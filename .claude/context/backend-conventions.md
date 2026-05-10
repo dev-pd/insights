@@ -98,7 +98,11 @@ Configure starlette's `Limits` middleware (or equivalent) to cap raw request bod
 
 ## CORS configuration
 
-`CORSMiddleware` in `main.py` allows the frontend origin from `Settings.frontend_origin`. Default `http://localhost:3000`. In production, this would be the deployed frontend URL. Never use `allow_origins=["*"]` in production — it disables the cross-origin protection the browser enforces.
+The docker-compose stack uses nginx in front of both backend and frontend, so the browser sees a single origin and CORS is not needed at runtime. `CORSMiddleware` is still installed in `main.py` with `allow_origins` from `Settings.frontend_origin` (default `http://localhost:3000`) as a defense-in-depth measure: if someone bypasses nginx and hits the backend directly during debugging, the middleware enforces an explicit allowed-origin list rather than silently accepting all origins. Never use `allow_origins=["*"]` in any deployment.
+
+## Proxy header handling
+
+`uvicorn` always runs with `--proxy-headers --forwarded-allow-ips=*` because nginx is always in front. This makes FastAPI honor `X-Forwarded-For`, `X-Forwarded-Proto`, and `X-Forwarded-Host` from nginx, so the request_id middleware and any future per-IP rate limiting see real client IPs (not nginx's IP, which would be the immediate peer).
 
 ## No magic values
 
