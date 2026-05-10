@@ -1,13 +1,15 @@
 import type { Metadata } from "next"
 import "./globals.css"
-import { Geist } from "next/font/google";
-import { cn } from "@/lib/utils";
+import { Geist } from "next/font/google"
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+import { cn } from "@/lib/utils"
+import { common } from "@/locales/en/common"
+
+const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
 
 export const metadata: Metadata = {
-  title: "Feedback Insights",
-  description: "LLM-powered customer feedback extraction and analytics",
+  title: common.app.title,
+  description: common.app.description,
 }
 
 export default function RootLayout({
