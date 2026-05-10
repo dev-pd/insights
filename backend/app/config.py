@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     db_pool_size: int = Field(default=10, ge=1)
     db_max_overflow: int = Field(default=20, ge=0)
 
-    redis_url: str = "redis://redis:6379/0"
+    redis_url: str
 
     llm_model: str = "claude-haiku-4-5"
     llm_max_tokens: int = Field(default=200, ge=1, le=4096)
