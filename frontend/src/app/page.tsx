@@ -23,17 +23,23 @@ export default function Home() {
     revalidateOnFocus: true,
   })
 
-  // Listen for SSE stats_invalidate so the pill reflects worker completions
-  // without waiting for the 5s SWR poll. /feedback page also listens, so a
-  // user might end up with multiple SSE connections — that's fine, backend
-  // serves each independently.
-  useFeedbackStream({
-    onStatsInvalidate: () => {
-      mutate(API_ROUTES.stats)
-    },
-  })
-
   const pendingCount = stats?.pending_count ?? 0
+
+  // Conditional SSE: only subscribe while there's work in flight. When
+  // pending=0 the SWR 5s poll handles dashboard freshness — no need to pin
+  // a Redis pubsub slot just to receive heartbeats. When pending flips >0
+  // (worker accepted a fresh batch via the stress-test button or /add),
+  // the hook re-runs and opens the stream. Matches the architecture doc's
+  // original "subscribe only when at least one row has status=processing"
+  // intent.
+  useFeedbackStream(
+    {
+      onStatsInvalidate: () => {
+        mutate(API_ROUTES.stats)
+      },
+    },
+    pendingCount > 0,
+  )
 
   return (
     <main className="container mx-auto max-w-5xl px-4 py-8 flex flex-col gap-6">
