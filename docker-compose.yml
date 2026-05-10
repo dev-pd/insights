@@ -36,11 +36,13 @@ services:
     # --concurrency from CELERY_WORKER_CONCURRENCY env (default 4).
     # Time limits are configured on celery_app itself, not the CLI, so they
     # stay one-source-of-truth in app/tasks/celery_app.py.
+    # The multi-stage backend Dockerfile drops `uv` from the final image and
+    # exposes the venv binaries on PATH, so we call `celery` directly.
     command:
       [
         "sh",
         "-c",
-        "uv run celery -A app.tasks worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-4}",
+        "celery -A app.tasks worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-4}",
       ]
     depends_on:
       postgres:
@@ -52,7 +54,19 @@ services:
   beat:
     build: ./backend
     env_file: ./backend/.env
-    command: ["uv", "run", "celery", "-A", "app.tasks", "beat", "--loglevel=info"]
+    # --schedule writes to /tmp because the non-root app user can't write to
+    # WORKDIR (/app). The schedule file only stores last-run timestamps;
+    # losing it on container restart at most fires one redundant invocation,
+    # acceptable for hourly cache warming.
+    command:
+      [
+        "celery",
+        "-A",
+        "app.tasks",
+        "beat",
+        "--loglevel=info",
+        "--schedule=/tmp/celerybeat-schedule",
+      ]
     depends_on:
       redis:
         condition: service_healthy
