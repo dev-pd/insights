@@ -103,6 +103,24 @@ class FeedbackRepository:
     async def get(self, feedback_id: int) -> Feedback | None:
         return await self.session.get(Feedback, feedback_id)
 
+    async def list_recent_for_summary(
+        self, cutoff: datetime, limit: int
+    ) -> list[Feedback]:
+        """Recent EXTRACTED feedback for summary generation.
+
+        Skipped/failed rows are excluded — they have no sentiment/themes for
+        the summarizer to ground in. Newest first; limit caps prompt size.
+        """
+        stmt = (
+            select(Feedback)
+            .where(Feedback.status == FeedbackStatus.EXTRACTED.value)
+            .where(Feedback.created_at >= cutoff)
+            .order_by(desc(Feedback.created_at))
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def count_in_window(self, start: datetime, end: datetime) -> int:
         """Count feedback created in [start, end). Half-open so back-to-back
         windows don't double-count the boundary instant."""
