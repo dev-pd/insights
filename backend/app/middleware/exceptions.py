@@ -4,13 +4,13 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.exceptions import EXCEPTION_TO_STATUS, AppError, DatabaseError
+from app.exceptions import AppError, DatabaseError
 
 logger = logging.getLogger(__name__)
 
 
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
-    status = EXCEPTION_TO_STATUS.get(type(exc), 500)
+    status = getattr(exc, "status_code", 500)
     return JSONResponse(
         status_code=status,
         content={
