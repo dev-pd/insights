@@ -48,4 +48,4 @@ export const apiClient = {
     request<T>(path, { method: "POST", body: JSON.stringify(body) }),
 }
 
-export const fetcher = (url: string) => apiClient.get(url)
+export const fetcher = <T>(url: string): Promise<T> => apiClient.get<T>(url)
