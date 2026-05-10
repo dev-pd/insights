@@ -186,9 +186,22 @@ Each repository:
 - Never returns raw query results, dicts, or rows
 - Hides all SQLAlchemy specifics: `select()`, `where()`, `scalars()`, `execute()` calls live ONLY here
 
+### Where models live
+
+SQLAlchemy entity definitions live in `app/models/`, one file per entity. Models import `Base` from `app.db`. Repositories import entities from `app.models`. Services never import models or `db.py` directly — they go through repositories.
+
+This separation matters even at PoC scale: `db.py` becomes a stable infrastructure module that rarely changes, `models/` evolves with the domain, and the boundary makes "where do I add a new entity" trivially answerable.
+
 ### Pattern
 
 ```python
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.constants import FeedbackStatus
+from app.models.feedback import Feedback
+
+
 class FeedbackRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
