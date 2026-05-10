@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import "./globals.css"
 import { Geist } from "next/font/google"
 
+import { Navbar } from "@/components/shared/Navbar"
 import { cn } from "@/lib/utils"
 import { common } from "@/locales/en/common"
 
@@ -19,7 +20,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={cn("font-sans", geist.variable)}>
-      <body className="bg-gray-50 text-gray-900 min-h-screen">{children}</body>
+      <body className="bg-background text-foreground min-h-screen">
+        <Navbar />
+        {children}
+      </body>
     </html>
   )
 }
