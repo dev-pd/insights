@@ -53,7 +53,6 @@ export function StatsDashboard() {
   if (isLoading && !data) {
     return (
       <section className="flex flex-col gap-4">
-        <h2 className="text-lg font-semibold">{statsCopy.kpis.sectionTitle}</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
           {Array.from({ length: KPI_COUNT }).map((_, index) => (
             <Skeleton key={index} className="h-20 w-full" />
@@ -70,13 +69,10 @@ export function StatsDashboard() {
 
   if (error || !data) {
     return (
-      <section className="flex flex-col gap-2">
-        <h2 className="text-lg font-semibold">{statsCopy.kpis.sectionTitle}</h2>
-        <p className="text-sm text-destructive">
-          {(error instanceof Error ? error.message : null) ??
-            common.errors.generic}
-        </p>
-      </section>
+      <p className="text-sm text-destructive">
+        {(error instanceof Error ? error.message : null) ??
+          common.errors.generic}
+      </p>
     )
   }
 
@@ -85,8 +81,6 @@ export function StatsDashboard() {
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold">{statsCopy.kpis.sectionTitle}</h2>
-
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         <KpiCard
           label={statsCopy.kpis.totalFeedback}
@@ -122,6 +116,7 @@ export function StatsDashboard() {
           label={statsCopy.kpis.avgLatency}
           value={formatLatency(data.avg_latency_ms)}
           unit={statsCopy.units.ms}
+          hint={statsCopy.kpis.latencyHint}
         />
         <KpiCard
           label={statsCopy.kpis.totalTokens}

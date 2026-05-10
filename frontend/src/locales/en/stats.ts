@@ -18,6 +18,7 @@ export const stats = {
       count === 1 ? "1 feedback item" : `${count} feedback items`,
     tokensHint: (input: number, output: number) =>
       `${input} in / ${output} out`,
+    latencyHint: "LLM latency",
   },
   charts: {
     themeFrequency: {
@@ -40,6 +41,10 @@ export const stats = {
       neutral: "Neutral",
       negative: "Negative",
     },
+  },
+  processing: {
+    pillLabel: (count: number) =>
+      count === 1 ? "1 processing" : `${count} processing`,
   },
   summary: {
     title: "Today's summary",

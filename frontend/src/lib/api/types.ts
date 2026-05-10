@@ -118,6 +118,8 @@ export interface Stats {
   total_extracted: number
   total_skipped: number
   total_failed: number
+  /** Phase 4: feedback rows currently in PROCESSING status (being handled by a Celery worker). */
+  pending_count: number
   sentiment_breakdown: SentimentBreakdown
   positive_pct: number
   negative_pct: number
