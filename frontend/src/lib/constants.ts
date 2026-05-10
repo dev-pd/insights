@@ -46,6 +46,9 @@ export const UI_DIMENSIONS = {
   themeChartYAxisWidthPx: 44,
   /** Fixed height for the sentiment trend chart container. */
   sentimentTrendHeightPx: 280,
+  /** Page size for the /feedback table. 20 fits a screen comfortably without
+   *  forcing the user to scroll the whole page on a typical desktop. */
+  feedbackPageSize: 20,
 } as const
 
 export const UI_FORMATTING = {
