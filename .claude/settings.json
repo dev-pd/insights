@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(node_modules/**)",
+      "Read(**/node_modules/**)",
+      "Read(.next/**)",
+      "Read(**/.next/**)",
+      "Read(dist/**)",
+      "Read(**/dist/**)",
+      "Read(.venv/**)",
+      "Read(**/.venv/**)",
+      "Read(**/__pycache__/**)",
+      "Read(**/*.pyc)",
+      "Read(**/.DS_Store)"
+    ]
+  }
+}
