@@ -368,37 +368,83 @@ export const SENTIMENT_LABELS = {
 
 ## No magic values
 
-If a value could vary, repeat, or change with environment, it does NOT live inline in components.
+**Non-negotiable for Phase 2-5 code.** No inline numbers or repeated strings in components. Every tunable goes to one of three homes.
 
-| Type of value | Where it lives |
-|---|---|
-| API route paths | `lib/api/routes.ts` as `API_ROUTES` constant. All versioned paths include the `/v1/` prefix (e.g. `feedback: { list: "/v1/feedback" }`); operational endpoints like `/health` stay unprefixed. |
-| Sentiment colors / labels / chart fills | `lib/sentiment.ts` as `SENTIMENT_STYLES`, `SENTIMENT_COLORS`, `SENTIMENT_LABELS` |
-| UI timings (debounce, polling, animation) | `lib/constants.ts` as `UI_TIMINGS` |
-| API base URL | `process.env.NEXT_PUBLIC_API_BASE_URL` (with sensible default) |
-| Repeated string literals | Module-level constants with descriptive names |
+### Where each kind of value lives
+
+| Type of value | Where it lives | Import path |
+|---|---|---|
+| **API route paths** | `lib/api/routes.ts` as `API_ROUTES` (`as const`). All versioned paths include `/v1/` prefix; operational endpoints (`/health`, `/ready`) stay unprefixed. | `import { API_ROUTES } from "@/lib/api/routes"` |
+| **UI timings** (polling intervals, debounces, animation, request timeouts) | `lib/constants.ts` as `UI_TIMINGS` (`as const`) | `import { UI_TIMINGS } from "@/lib/constants"` |
+| **UI dimensions** (textarea rows, default limits, layout sizes) | `lib/constants.ts` as `UI_DIMENSIONS` (`as const`) | `import { UI_DIMENSIONS } from "@/lib/constants"` |
+| **User-facing strings** (labels, placeholders, error messages, button text) | `locales/en/{common,feedback,stats}.ts` (`as const`, no barrel file) | `import { feedback } from "@/locales/en/feedback"` (direct, leaf-file imports only) |
+| **Sentiment / status visual maps** (planned) | `lib/sentiment.ts` as `SENTIMENT_STYLES`, `SENTIMENT_LABELS` (Phase 3 — not created yet) | `import { SENTIMENT_STYLES } from "@/lib/sentiment"` |
+| **API base URL** | `process.env.NEXT_PUBLIC_API_BASE_URL` (empty-string fallback) — read once in `lib/api/client.ts` | n/a — only in `client.ts` |
+| **Backend-controlled values** (page sizes, validation thresholds, max body length) | NOT in frontend code. Backend Settings owns these; frontend reads them implicitly via API behavior. | n/a |
 
 ```tsx
 // Good
 import { API_ROUTES } from "@/lib/api/routes"
-import { SENTIMENT_STYLES } from "@/lib/sentiment"
-import { UI_TIMINGS } from "@/lib/constants"
+import { UI_TIMINGS, UI_DIMENSIONS } from "@/lib/constants"
+import { feedback } from "@/locales/en/feedback"
 
-const { data } = useSWR(API_ROUTES.feedback.list, fetcher)
-{item.sentiment && (
-  <Badge className={SENTIMENT_STYLES[item.sentiment]}>
-    {SENTIMENT_LABELS[item.sentiment]}
-  </Badge>
-)}
-useDebouncedValue(query, UI_TIMINGS.searchDebounceMs)
+const { data } = useSWR(API_ROUTES.feedback, fetcher, {
+  refreshInterval: UI_TIMINGS.feedbackListRefreshMs,
+})
+return (
+  <Textarea
+    rows={UI_DIMENSIONS.pasteFormRows}
+    placeholder={feedback.pasteForm.placeholder}
+  />
+)
 
 // Bad
-const { data } = useSWR("/api/feedback", fetcher)
-<Badge className="bg-emerald-100 text-emerald-700">{item.sentiment}</Badge>
-useDebouncedValue(query, 300)
+const { data } = useSWR("/api/v1/feedback", fetcher, { refreshInterval: 0 })
+<Textarea rows={6} placeholder="Paste customer feedback here..." />
 ```
 
-Rule of thumb: if a string or number appears in two or more files, extract it to a constant.
+### Currently defined `lib/constants.ts` (May 2026)
+
+For reference when wiring new code — pick the existing key rather than redefining:
+
+```ts
+UI_TIMINGS = {
+  apiRequestTimeoutMs: 30_000,        // apiClient AbortController
+  healthCheckRefreshMs: 30_000,       // HealthCheck SWR
+  feedbackListRefreshMs: 0,           // FeedbackList SWR (no polling in Phase 2)
+}
+
+UI_DIMENSIONS = {
+  pasteFormRows: 6,                   // Textarea visible rows
+}
+```
+
+### Workflow when you need a new tunable or string
+
+**For a number / dimension / timing:**
+1. Add the key to `UI_TIMINGS` or `UI_DIMENSIONS` in `lib/constants.ts` with `as const` preserved.
+2. Add a one-line trailing comment explaining what consumes it.
+3. Import via `import { UI_TIMINGS } from "@/lib/constants"` and reference by name.
+
+**For a user-facing string:**
+1. Add the key to the right `locales/en/<feature>.ts` (`common` for app-wide, `feedback`/`stats` for feature-scoped).
+2. Preserve the `as const` so the type stays narrow and i18n migration stays mechanical.
+3. Direct-import the leaf file (`@/locales/en/feedback`) — no barrel file.
+
+**Never:**
+- ❌ Inline numeric literals in component JSX (`refreshInterval: 30_000`, `rows={6}`).
+- ❌ Inline user-facing strings in components (`<Button>Submit</Button>`).
+- ❌ Create a barrel file (`locales/index.ts`, `components/feedback/index.ts`) — see "Modern patterns / No barrel files" above.
+- ❌ Hardcode backend-controlled limits in the frontend. Backend Settings is the source of truth; frontend should accept whatever the API returns.
+
+### Rule of thumb
+
+- Number or non-trivial string appears **once but might be tuned** → constant.
+- Appears in **two or more files** → constant, no exceptions.
+- Is **user-facing copy** → locale file, even if it appears once.
+- Is **a Tailwind utility class** (`gap-4`, `p-6`, `h-32`) → leave inline. Those are design tokens, not magic numbers.
+
+Phase 2-5 code MUST NOT introduce new inline timing/dimension literals or hardcoded user-facing strings. Audit your own diff before commit: `grep -nE 'refreshInterval:|rows=\{|setTimeout\([^,]+,\s*[0-9]'` over your changes should return only existing `UI_TIMINGS.*` / `UI_DIMENSIONS.*` references.
 
 ## Data fetching
 

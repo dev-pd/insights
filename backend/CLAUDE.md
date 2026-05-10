@@ -226,19 +226,22 @@ The docker-compose stack uses nginx in front of both backend and frontend, so th
 
 ## No magic values
 
-If a value could vary, repeat, or change with environment, it does NOT live inline in code.
+**Non-negotiable for Phase 2-5 code.** If a value could vary, repeat, or change with environment, it does NOT live inline in code.
 
-| Type of value | Where it lives |
-|---|---|
-| Numeric thresholds (timeouts, retry counts, batch sizes) | `app/config.py` Settings |
-| Status strings, skip reasons, enum-like strings | `app/constants.py` as `StrEnum` classes |
-| HTTP status codes | `fastapi.status.HTTP_*` constants |
-| Database connection strings, API keys | `app/config.py` Settings (loaded from env) |
-| Repeated string literals | Module-level constants with descriptive names |
+### Where each kind of value lives
+
+| Type of value | Where it lives | Imported via |
+|---|---|---|
+| Tunable thresholds (timeouts, retry counts, page sizes, validation limits, model id, max_tokens) | `app/core/config.py` `Settings` (loaded from `.env`) | `from app.core.config import get_settings; settings = get_settings()` |
+| Status strings, skip reasons, enum-like strings | `app/constants.py` as `StrEnum` classes | `from app.constants import FeedbackStatus, SkipReason` |
+| HTTP status codes | `fastapi.status.HTTP_*` constants | `from fastapi import status` |
+| Secrets (API keys, DB URLs) | `Settings` fields typed as `SecretStr` | same as Settings |
+| Repeated string literals (tool names, log event names) | Module-level `UPPER_SNAKE_CASE` constants in the file that owns the concept | direct import |
+| API contract constraints (Pydantic `Field(min_length=, max_length=)` on response shapes — `ExtractionResult.themes` etc.) | **Stay inline** in `app/llm/schema.py` / `app/schemas/*.py` | n/a — these define the contract; changing them is a breaking change, not a config change |
 
 ```python
 # Good
-from app.config import get_settings
+from app.core.config import get_settings
 from app.constants import FeedbackStatus
 from fastapi import status
 
@@ -253,7 +256,31 @@ if elapsed > 30:
 feedback.status = "processing"
 ```
 
-Rule of thumb: if a string or number appears in two or more files, extract it to a constant.
+### Currently defined Settings fields (May 2026)
+
+For reference when wiring new code — pick the existing field rather than redefining one:
+
+- **External services:** `anthropic_api_key`, `database_url`, `db_pool_size`, `db_max_overflow`, `redis_url`
+- **LLM tuning:** `llm_model`, `llm_max_tokens`, `llm_timeout_seconds`, `llm_max_retries`, `llm_retry_base_delay_seconds`, `llm_concurrency_limit`
+- **Validation thresholds:** `feedback_min_length`, `feedback_max_length`, `feedback_min_alpha_ratio`
+- **API limits:** `feedback_request_max_length` (POST body cap), `feedback_list_default_limit` (GET page size)
+- **SSE (Phase 4):** `sse_poll_interval_seconds`, `sse_max_stream_duration_minutes`
+- **Other:** `frontend_origin`, `log_level`
+
+### Workflow when you need a new tunable
+
+1. **Add a field to `Settings`** in `app/core/config.py` with a sensible default and Pydantic constraint (`Field(default=X, ge=Y, le=Z)`).
+2. **Add the env var to `backend/.env.example`** with the same default and a one-line comment if non-obvious. Group under the right section (LLM / validation / API limits / etc.).
+3. **Read it in code** via `get_settings().<field>` — never via `os.environ` directly.
+4. **Don't add a backstop module constant.** No `MIN_LENGTH = 10` next to the Settings field; pick one source of truth.
+
+### Rule of thumb
+
+- Number or non-enum string appears in **two or more files** → it's a constant.
+- Number or string is **tunable per environment** (dev vs docker vs prod) → it's a Settings field.
+- Number or string defines the **API contract that clients depend on** (response shape, schema constraints) → it stays inline in the schema where the contract lives.
+
+Phase 2-5 code MUST NOT introduce new module-level numeric/string constants for tunables. New tunables become Settings fields.
 
 ## Async patterns
 
