@@ -1,8 +1,3 @@
-from fastapi import APIRouter
-
-from app.api import health
-
-v1_router = APIRouter(prefix="/v1")
-
-ops_router = APIRouter()
-ops_router.include_router(health.router, tags=["operational"])
+# Package marker.
+# v1 router lives in app.api.v1.router; operational router in app.api.health.
+# main.py mounts both directly.
