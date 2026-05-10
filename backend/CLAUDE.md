@@ -758,7 +758,7 @@ No premature optimization. Write the clear version first. Profile before optimiz
 
 ## Gotchas
 
-Backend-specific things we've hit. Cross-cutting gotchas (nginx restart, fresh DB volume, `.env` access) live in the root `CLAUDE.md`.
+Backend-specific things we've hit. Cross-cutting gotchas (nginx restart, fresh DB volume, `.env` access, Phase 4 async-specific) live in the root `CLAUDE.md`.
 
 - **nginx strips `/api/` before forwarding.** `nginx.conf` has `proxy_pass http://backend/;` (trailing slash) which replaces `/api/` with `/` before forwarding. So backend mounts routes at `/v1/...` and `/health` — NOT `/api/v1/...`. Don't add `prefix="/api"` when calling `app.include_router(v1_router)`. Symptom of getting it wrong: 404 on every `/api/v1/*` request.
 
@@ -775,3 +775,48 @@ Backend-specific things we've hit. Cross-cutting gotchas (nginx restart, fresh D
 - **Sentiment trend window is anchored on today, walking back N-1 days.** `range(trend_days)` produces `[today - 13d, today]` — 14 buckets ending today inclusive. Easy to off-by-one this; symptom is "I posted feedback right now and it doesn't show in today's bucket."
 
 - **`Field(default_factory=list)` on Pydantic ≠ `Field(default=[])`.** The latter is a shared mutable default. `default_factory=list` produces a fresh list per instance. Used in `ExtractionResult.action_items` and matters for any list/dict default.
+
+### Async processing (Phase 4)
+
+Feedback extraction runs asynchronously via Celery. POST `/v1/feedback` persists a row with `status=PROCESSING` and returns immediately; a Celery worker picks up the task from the Redis broker, extracts insights, updates the row, and publishes events to Redis pub/sub which the SSE endpoint streams to connected browsers.
+
+Topology (all on one Redis instance, separate logical DBs):
+- `redis://redis:6379/0` — summary cache + pub/sub channels (`events:*`)
+- `redis://redis:6379/1` — Celery broker
+- `redis://redis:6379/2` — Celery result backend
+
+Services:
+- **worker** — `celery -A app.tasks worker --concurrency=$CELERY_WORKER_CONCURRENCY` (default 4 prefork processes)
+- **beat** — `celery -A app.tasks beat --schedule=/tmp/celerybeat-schedule` (the schedule file goes to /tmp because the non-root container user can't write WORKDIR)
+
+The Celery app (`app/tasks/celery_app.py`) sets:
+- `task_acks_late=True` + `task_reject_on_worker_lost=True` — crashed workers requeue mid-task
+- `worker_prefetch_multiplier=1` — fair distribution
+- JSON-only serialization
+- Soft/hard time-limit window from Settings (default 120s / 180s)
+
+Retry policy on `extract_feedback_task`:
+- `autoretry_for=(LLMError, TimeoutError, ConnectionError)` — transient only
+- `retry_backoff=True` with jitter, `retry_backoff_max=60`, `max_retries=3`
+- Total retry window ~7s with backoff. After exhaustion the row stays FAILED with error metadata.
+
+Beat schedule:
+- `regenerate-summary-hourly` (default :00) — calls `SummaryService.get_summary(force_refresh=True)` so the dashboard never has a cold-cache slow load. Failures don't re-raise (next hour retries naturally).
+
+### Pub/sub channels (Phase 4)
+
+- `events:feedback_update` — published per worker completion. Payload: `{feedback_id, status, payload: {sentiment, themes, action_items, language?, error?}, ts}`.
+- `events:stats_invalidate` — published alongside feedback updates. Tells dashboards to refetch `/v1/stats`; cheaper than embedding new stats in the event.
+
+Workers use the sync redis client (`publish_feedback_event_sync`), the SSE endpoint uses async (`pubsub.subscribe`). Both target the same Redis db 0. The helpers swallow publish failures at WARNING level so a pub/sub outage never poisons the main flow.
+
+### SSE endpoint (Phase 4)
+
+GET `/v1/events` streams `text/event-stream`. The stream loop polls pubsub with a 1s timeout so we can check client-disconnect and heartbeat-due frequently. Heartbeat (SSE comment) fires every `SSE_HEARTBEAT_INTERVAL_SECONDS` (default 30s) — keeps the connection alive through nginx/proxy idle timeouts.
+
+Events emitted:
+- `connected` (one-shot on subscribe — client confirms the pipeline is live before submit)
+- `feedback_update` (per worker completion)
+- `stats_invalidate` (per worker completion)
+
+EventSource auto-reconnects on transient drops; no manual retry in the route or hook.

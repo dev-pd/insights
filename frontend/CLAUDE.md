@@ -824,3 +824,29 @@ Frontend-specific things we've hit. Cross-cutting gotchas (nginx restart, `.env`
 - **High-cardinality charts need a slot-min-width strategy, not a cap on data.** If your chart can plausibly receive 50+ items (themes, days, categories), set a minimum px slot per item via `UI_DIMENSIONS.<chart>SlotMinPx`, compute inner width as `items.length × slotMinPx`, and wrap in `overflow-x-auto`. The API should return all data; the UI decides display. Capping the API to fit the chart conflates two layers and forces magic numbers into product decisions.
 
 - **Long rotated XAxis labels need `height` set explicitly.** A label like `"android 14 compatibility"` (24 chars at fontSize 11, ~144px wide) rotated -35° drops ~83px vertically. The default XAxis height is ~30px → labels clip into the next element. Reserve the right band height (`UI_DIMENSIONS.<chart>LabelHeightPx`); compute the diagonal drop with `width × sin(angle)` if you change the angle.
+
+- **EventSource doesn't reconnect on HTTP errors.** It silently retries on transient drops (network hiccups, server restart, etc.) — but on a 4xx/5xx response the browser stops retrying entirely. If the SSE endpoint starts returning 401/404/500 after a deploy, every page that subscribes goes silent and never recovers without a hard refresh. Smoke-test with `curl -N /api/v1/events` after deploys.
+
+- **`useFeedbackStream` deps array is `[]` on purpose.** The hook reads handlers via a ref (`handlersRef.current`), so callers can pass inline closures every render without re-creating the EventSource. If you put `[handlers]` in the deps, every parent re-render tears down + recreates the connection — visible as a flurry of `connected` events in the SSE log.
+
+- **Predicate-based `mutate()` for paginated caches.** On a `feedback_update` event, calling `mutate(specificUrl, ...)` only patches one query-param permutation. Pages keep different paginated URLs in the SWR cache (`?offset=0&limit=20&sentiment=positive` vs `?offset=20&limit=20`), and the matching row could be on any of them. Use the predicate form: `mutate((key) => typeof key === "string" && key.startsWith(API_ROUTES.feedbackPaginated), patcher, { revalidate: false })`. Every cached page gets the patch; non-matching rows pass through.
+
+### Real-time updates via SSE (Phase 4)
+
+`useFeedbackStream` exposes four handler slots: `onFeedbackUpdate`, `onStatsInvalidate`, `onConnected`, `onError`. EventSource owns the reconnect loop; cleanup closes the source on unmount.
+
+Used on:
+- `/feedback` page — predicate-based SWR cache patch on `feedback_update`, `mutate(API_ROUTES.stats)` on `stats_invalidate`. Rows visibly transition from spinning "Processing" badge to colored sentiment badge as workers complete.
+- `/` (dashboard) — only listens to `stats_invalidate` to refetch the pending-count + KPIs. The 5s SWR poll keeps things accurate even without SSE; SSE just shortens the latency.
+
+### Dashboard processing pill
+
+Shows in the page header next to the "Dashboard" title when `stats.pending_count > 0`. `ProcessingPill` is self-hiding (`if count <= 0 return null`) so the page can render it unconditionally.
+
+Driven by the same `/v1/stats` SWR fetch the rest of the dashboard uses (SWR deduplicates the cache key across consumers). SSE `stats_invalidate` triggers a fresh fetch on each worker completion.
+
+### Heading at page level
+
+All three routes (`/`, `/add`, `/feedback`) put their `<h1 text-2xl font-bold>` directly in `app/<route>/page.tsx`, not inside child components. StatsDashboard, PasteForm, FeedbackTable do not render their own page headings.
+
+Pattern keeps page-level concerns (heading, page-status indicators like ProcessingPill) on the page, while components stay reusable section/widget primitives that could be dropped elsewhere unchanged.
