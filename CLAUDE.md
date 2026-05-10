@@ -15,10 +15,13 @@ A POC for extracting structured insights from customer feedback using LLMs. Scop
 
 ## Imports
 @.claude/context/architecture.md
-@.claude/context/backend-conventions.md
-@.claude/context/frontend-conventions.md
-@.claude/context/production-patterns.md
-@.claude/context/llm-workflow.md
+
+## Where conventions live
+- **Backend rules** (Python/FastAPI/SQLAlchemy): `backend/CLAUDE.md` — auto-loads when Claude reads files under `backend/`.
+- **Frontend rules** (Next.js/TS/SWR): `frontend/CLAUDE.md` — auto-loads when Claude reads files under `frontend/`.
+- **Backend implementation patterns** (config code, logging setup, exception hierarchy code, DI aliases, DB session, pooling, concurrency, shutdown, testing): `backend-patterns` skill — invoke when implementing these.
+- **LLM workflow** (extraction, prompts, evals, `call_llm` wrapper): `llm-workflow` skill — invoke when working in `backend/app/llm/`.
+- **Engineering notes** (migration table, what's deferred to production): `NOTES.md`.
 
 ## Gotchas
 (Add as discovered)
