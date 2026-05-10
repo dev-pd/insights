@@ -68,8 +68,8 @@ class StatsService:
         today = now.date()
         start_date = today - timedelta(days=trend_days - 1)
         trend_buckets: dict[str, dict[str, int]] = {}
-        for i in range(trend_days):
-            day = (start_date + timedelta(days=i)).isoformat()
+        for day_offset in range(trend_days):
+            day = (start_date + timedelta(days=day_offset)).isoformat()
             trend_buckets[day] = {"positive": 0, "neutral": 0, "negative": 0}
 
         cutoff_dt = datetime.combine(

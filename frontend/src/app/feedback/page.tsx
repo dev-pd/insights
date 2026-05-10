@@ -77,8 +77,8 @@ export default function FeedbackPage() {
 
       {isLoading && !data ? (
         <div className="flex flex-col gap-2">
-          {Array.from({ length: SKELETON_ROW_COUNT }).map((_, i) => (
-            <Skeleton key={i} className="h-10 w-full" />
+          {Array.from({ length: SKELETON_ROW_COUNT }).map((_, index) => (
+            <Skeleton key={index} className="h-10 w-full" />
           ))}
         </div>
       ) : error ? (

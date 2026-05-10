@@ -104,12 +104,18 @@ async def create_feedback_batch(
     """
     results = await service.create_feedback_batch(payload.texts)
 
-    extracted = sum(1 for r in results if r.status == FeedbackStatus.EXTRACTED.value)
-    skipped = sum(1 for r in results if r.status == FeedbackStatus.SKIPPED.value)
-    failed = sum(1 for r in results if r.status == FeedbackStatus.FAILED.value)
+    extracted = sum(
+        1 for feedback in results if feedback.status == FeedbackStatus.EXTRACTED.value
+    )
+    skipped = sum(
+        1 for feedback in results if feedback.status == FeedbackStatus.SKIPPED.value
+    )
+    failed = sum(
+        1 for feedback in results if feedback.status == FeedbackStatus.FAILED.value
+    )
 
     return FeedbackBatchResponse(
-        items=[FeedbackOut.model_validate(r) for r in results],
+        items=[FeedbackOut.model_validate(feedback) for feedback in results],
         total=len(results),
         extracted=extracted,
         skipped=skipped,

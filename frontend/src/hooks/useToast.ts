@@ -42,13 +42,13 @@ function pushToast(message: string, options: ShowToastOptions = {}) {
 
   const duration = options.durationMs ?? DEFAULT_DURATION_MS
   setTimeout(() => {
-    currentToasts = currentToasts.filter((t) => t.id !== id)
+    currentToasts = currentToasts.filter((toast) => toast.id !== id)
     notifySubscribers()
   }, duration)
 }
 
 function dismissToastById(id: string) {
-  currentToasts = currentToasts.filter((t) => t.id !== id)
+  currentToasts = currentToasts.filter((toast) => toast.id !== id)
   notifySubscribers()
 }
 

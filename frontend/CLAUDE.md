@@ -196,6 +196,34 @@ For this app, every component in `components/` and every hook in `hooks/` uses `
 | Type | PascalCase | `FeedbackOut`, `Sentiment` |
 | Props type | PascalCase ending in `Props` | `FeedbackCardProps` |
 
+### No single-letter variables
+
+`.map`, `.filter`, `.reduce` callbacks, `for` loop counters, and event handler arguments get descriptive names. The bar: would a reader unfamiliar with the function understand the variable's meaning at the point of first use?
+
+```tsx
+// Good
+{themes.map((themeCount) => ({ theme: themeCount.theme, count: themeCount.count }))}
+{pages.map((page, index) => <Button key={page}>{page}</Button>)}
+onChange={(event) => setText(event.target.value)}
+onClick={(event) => { event.stopPropagation(); onToggle() }}
+currentToasts.filter((toast) => toast.id !== id)
+for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) ...
+
+// Bad
+{themes.map((t) => ({ theme: t.theme, count: t.count }))}
+{pages.map((page, idx) => <Button key={page}>{page}</Button>)}
+onChange={(e) => setText(e.target.value)}
+onClick={(e) => { e.stopPropagation(); onToggle() }}
+currentToasts.filter((t) => t.id !== id)
+for (let i = 1; i <= totalPages; i++) ...
+```
+
+Pick a name that says what the value *is* in the domain (`theme`, `feedback`, `event`, `toast`), not just its type (`obj`, `item`, `e`, `t`).
+
+**Allowed exceptions:**
+- Literal `_` for "I'm ignoring this." `data.map((_, index) => ...)` is fine when the value is unused.
+- Math/layout conventions where the single letter IS the domain language: `x, y` for coordinates, `dx, dy` for deltas in chart code.
+
 ## Exports
 
 **Named exports only.** No default exports anywhere except where Next.js requires them (page components in `app/`).

@@ -25,7 +25,7 @@ export function SentimentFilter({ value, onChange }: SentimentFilterProps) {
       </span>
       <Select
         value={value}
-        onValueChange={(v) => onChange(v as SentimentFilterValue)}
+        onValueChange={(value) => onChange(value as SentimentFilterValue)}
       >
         <SelectTrigger className="w-[180px]">
           <SelectValue />

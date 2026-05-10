@@ -160,8 +160,8 @@ function FeedbackRow({ item, isExpanded, onToggle }: FeedbackRowProps) {
                 : feedbackCopy.table.expandRow
             }
             aria-expanded={isExpanded}
-            onClick={(e) => {
-              e.stopPropagation()
+            onClick={(event) => {
+              event.stopPropagation()
               onToggle()
             }}
             className="h-7 w-7 p-0"
@@ -221,8 +221,8 @@ function FeedbackRowDetail({ item }: { item: Feedback }) {
             {feedbackCopy.table.actionItemsLabel}:
           </span>
           <ul className="list-disc list-inside text-sm">
-            {item.action_items.map((action, idx) => (
-              <li key={idx}>{action}</li>
+            {item.action_items.map((action, index) => (
+              <li key={index}>{action}</li>
             ))}
           </ul>
         </div>

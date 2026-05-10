@@ -23,7 +23,7 @@ def validate_feedback(text: str) -> SkipReason | None:
     if len(stripped) > settings.feedback_max_length:
         return SkipReason.TOO_LONG
 
-    alpha_chars = sum(1 for c in stripped if c.isalpha())
+    alpha_chars = sum(1 for char in stripped if char.isalpha())
     if alpha_chars / len(stripped) < settings.feedback_min_alpha_ratio:
         return SkipReason.GIBBERISH
 

@@ -60,12 +60,12 @@ export function SentimentTrendChart({ points }: SentimentTrendChartProps) {
     )
   }
 
-  const data = points.map((p) => ({
-    bucket: p.bucket,
-    label: p.bucket.slice(ISO_DATE_MM_DD_OFFSET),
-    positive: p.positive,
-    neutral: p.neutral,
-    negative: p.negative,
+  const data = points.map((point) => ({
+    bucket: point.bucket,
+    label: point.bucket.slice(ISO_DATE_MM_DD_OFFSET),
+    positive: point.positive,
+    neutral: point.neutral,
+    negative: point.negative,
   }))
 
   return (

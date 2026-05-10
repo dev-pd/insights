@@ -77,6 +77,38 @@ All on latest stable per the locked `uv.lock`:
 | Enum class | PascalCase | `FeedbackStatus` |
 | Enum member | UPPER_SNAKE_CASE | `FeedbackStatus.PROCESSING` |
 
+### No single-letter variables
+
+Loop variables, comprehension variables, and exception bindings get descriptive names. The codebase reads from many angles (PR review, grep, AI assistants, future you); a one-letter name forces the reader to reconstruct what it represents from surrounding code, every time.
+
+```python
+# Good
+extracted = sum(1 for feedback in results if feedback.status == "extracted")
+items = [FeedbackOut.model_validate(feedback) for feedback in results]
+for index, text in enumerate(texts):
+    ...
+try:
+    ...
+except LLMError as error:
+    log.exception("llm_failed", extra={"error_type": type(error).__name__})
+
+# Bad
+extracted = sum(1 for r in results if r.status == "extracted")
+items = [FeedbackOut.model_validate(r) for r in results]
+for i, text in enumerate(texts):
+    ...
+except LLMError as e:
+    log.exception("llm_failed", extra={"error_type": type(e).__name__})
+```
+
+The bar: would a reader unfamiliar with the function understand the variable's meaning at the point of first use? If not, rename.
+
+**Allowed exceptions:**
+- Literal `_` for "I'm ignoring this." `for _themes, sentiment, created_at in rows:` is fine when only sentiment/created_at are used.
+- Math/physics conventions where the single letter IS the domain language: `x, y, z` for coordinates; `dx, dy` for deltas in chart layout code.
+
+Default to descriptive — and pick a name that says what the value *is* in the domain (`feedback`, `theme`, `error`), not just its type (`obj`, `item`, `e`).
+
 ## Type hints
 
 Required on every function signature (parameters and return type). No exceptions.

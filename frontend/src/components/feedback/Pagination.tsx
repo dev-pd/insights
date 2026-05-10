@@ -27,13 +27,17 @@ export function Pagination({
   const pages: (number | "ellipsis")[] = []
 
   if (totalPages <= MAX_VISIBLE_PAGES + 2) {
-    for (let i = 1; i <= totalPages; i++) pages.push(i)
+    for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
+      pages.push(pageNumber)
+    }
   } else {
     pages.push(1)
     const startVisible = Math.max(2, currentPage - 1)
     const endVisible = Math.min(totalPages - 1, currentPage + 1)
     if (startVisible > 2) pages.push("ellipsis")
-    for (let i = startVisible; i <= endVisible; i++) pages.push(i)
+    for (let pageNumber = startVisible; pageNumber <= endVisible; pageNumber++) {
+      pages.push(pageNumber)
+    }
     if (endVisible < totalPages - 1) pages.push("ellipsis")
     pages.push(totalPages)
   }
@@ -49,11 +53,11 @@ export function Pagination({
         {feedbackCopy.pagination.previous}
       </Button>
 
-      {pages.map((page, idx) => {
+      {pages.map((page, index) => {
         if (page === "ellipsis") {
           return (
             <span
-              key={`ellipsis-${idx}`}
+              key={`ellipsis-${index}`}
               className="px-2 text-muted-foreground"
               aria-hidden="true"
             >

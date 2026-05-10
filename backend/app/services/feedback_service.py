@@ -92,25 +92,29 @@ class FeedbackService:
         """
         results: list[Feedback] = []
         total = len(texts)
-        for i, text in enumerate(texts):
+        for index, text in enumerate(texts):
             try:
                 feedback = await self.create_feedback(text)
                 results.append(feedback)
                 log.info(
                     "batch_item_processed",
-                    extra={"index": i, "total": total, "status": feedback.status},
+                    extra={"index": index, "total": total, "status": feedback.status},
                 )
-            except Exception as e:  # noqa: BLE001 — fault isolation per item
+            except Exception as error:  # noqa: BLE001 — fault isolation per item
                 log.exception(
                     "batch_item_failed",
-                    extra={"index": i, "total": total, "error_type": type(e).__name__},
+                    extra={
+                        "index": index,
+                        "total": total,
+                        "error_type": type(error).__name__,
+                    },
                 )
                 failed_row = await self.repo.create(
                     text=text,
                     status=FeedbackStatus.FAILED,
                     llm_metadata={
-                        "error_type": type(e).__name__,
-                        "error": str(e),
+                        "error_type": type(error).__name__,
+                        "error": str(error),
                         "context": "batch_processing",
                     },
                 )

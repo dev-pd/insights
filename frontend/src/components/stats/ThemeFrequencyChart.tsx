@@ -33,7 +33,7 @@ const BAR_COLOR = "var(--primary)"
 // shrinks; bars don't visually rescale just because counts moved.
 const Y_TICKS = Array.from(
   { length: UI_DIMENSIONS.themeChartYAxisMax / UI_DIMENSIONS.themeChartYAxisStep + 1 },
-  (_, i) => i * UI_DIMENSIONS.themeChartYAxisStep,
+  (_, index) => index * UI_DIMENSIONS.themeChartYAxisStep,
 )
 
 // Shared chart geometry. The HTML Y-axis sidecar computes label positions
@@ -62,7 +62,10 @@ export function ThemeFrequencyChart({ themes }: ThemeFrequencyChartProps) {
 
   // Themes arrive sorted desc by count. Keep that order along the X axis
   // so the leftmost bar is the most-mentioned theme.
-  const data = themes.map((t) => ({ theme: t.theme, count: t.count }))
+  const data = themes.map((themeCount) => ({
+    theme: themeCount.theme,
+    count: themeCount.count,
+  }))
 
   const chartHeight = UI_DIMENSIONS.themeChartHeightPx
   const yAxisWidth = UI_DIMENSIONS.themeChartYAxisWidthPx
@@ -183,8 +186,8 @@ export function ThemeFrequencyChart({ themes }: ThemeFrequencyChartProps) {
                     ]}
                   />
                   <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                    {data.map((_, idx) => (
-                      <Cell key={idx} fill={BAR_COLOR} />
+                    {data.map((_, index) => (
+                      <Cell key={index} fill={BAR_COLOR} />
                     ))}
                   </Bar>
                 </BarChart>
