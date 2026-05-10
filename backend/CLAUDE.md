@@ -269,6 +269,7 @@ For reference when wiring new code — pick the existing field rather than redef
 - **LLM tuning:** `llm_model`, `llm_max_tokens`, `llm_timeout_seconds`, `llm_max_retries`, `llm_retry_base_delay_seconds`, `llm_concurrency_limit`
 - **Validation thresholds:** `feedback_min_length`, `feedback_max_length`, `feedback_min_alpha_ratio`
 - **API limits:** `feedback_request_max_length` (POST body cap), `feedback_list_default_limit` (GET page size)
+- **Stats:** `stats_trend_days` (sentiment-trend window). Themes endpoint returns all themes; no cap.
 - **SSE (Phase 4):** `sse_poll_interval_seconds`, `sse_max_stream_duration_minutes`
 - **Other:** `frontend_origin`, `log_level`
 

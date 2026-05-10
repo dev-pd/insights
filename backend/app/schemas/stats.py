@@ -38,7 +38,7 @@ class StatsOut(BaseModel):
         description="Sentiment distribution among extracted feedback",
     )
     top_themes: list[ThemeCount] = Field(
-        description="Top themes by frequency (cap from Settings.stats_top_themes_limit)",
+        description="All themes sorted desc by count. No cap; chart owns display.",
     )
     sentiment_trend: list[SentimentTrendPoint] = Field(
         description="Daily sentiment counts (window from Settings.stats_trend_days)",

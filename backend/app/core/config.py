@@ -40,7 +40,6 @@ class Settings(BaseSettings):
     feedback_request_max_length: int = Field(default=10_000, ge=1)
     feedback_list_default_limit: int = Field(default=50, ge=1, le=500)
 
-    stats_top_themes_limit: int = Field(default=10, ge=1, le=100)
     stats_trend_days: int = Field(default=14, ge=1, le=365)
 
     sse_poll_interval_seconds: float = Field(default=1.0, gt=0.0)

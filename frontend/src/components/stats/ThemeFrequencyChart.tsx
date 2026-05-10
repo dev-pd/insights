@@ -58,6 +58,13 @@ export function ThemeFrequencyChart({ themes }: ThemeFrequencyChartProps) {
   // so the leftmost bar is the most-mentioned theme.
   const data = themes.map((t) => ({ theme: t.theme, count: t.count }))
 
+  // Compute inner width so the chart scrolls horizontally inside the card
+  // when there are more themes than fit at the minimum slot width.
+  // Wrapper has overflow-x-auto; inner div takes whichever is larger of
+  // the card width or themes × slot. That gives "fills the card" for few
+  // themes, "scrolls" for many.
+  const innerWidthPx = themes.length * UI_DIMENSIONS.themeChartSlotMinPx
+
   return (
     <Card>
       <CardHeader>
@@ -67,54 +74,57 @@ export function ThemeFrequencyChart({ themes }: ThemeFrequencyChartProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div
-          style={{
-            width: "100%",
-            height: UI_DIMENSIONS.themeChartHeightPx,
-          }}
-        >
-          <ResponsiveContainer>
-            <BarChart
-              data={data}
-              margin={{ top: 8, right: 8, bottom: 56, left: 8 }}
-            >
-              <XAxis
-                dataKey="theme"
-                tick={{ fontSize: 11 }}
-                stroke="var(--muted-foreground)"
-                interval={0}
-                angle={-35}
-                textAnchor="end"
-                height={56}
-              />
-              <YAxis
-                allowDecimals={false}
-                domain={[0, UI_DIMENSIONS.themeChartYAxisMax]}
-                ticks={Y_TICKS}
-                tick={{ fontSize: 12 }}
-                stroke="var(--muted-foreground)"
-                width={32}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "var(--popover)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "0.375rem",
-                  fontSize: "0.875rem",
-                }}
-                cursor={{ fill: "var(--muted)" }}
-                formatter={(value) => [
-                  value as number,
-                  statsCopy.charts.themeFrequency.countLabel,
-                ]}
-              />
-              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                {data.map((_, idx) => (
-                  <Cell key={idx} fill={BAR_COLOR} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="overflow-x-auto">
+          <div
+            style={{
+              width: `${innerWidthPx}px`,
+              minWidth: "100%",
+              height: UI_DIMENSIONS.themeChartHeightPx,
+            }}
+          >
+            <ResponsiveContainer>
+              <BarChart
+                data={data}
+                margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
+              >
+                <XAxis
+                  dataKey="theme"
+                  tick={{ fontSize: 11 }}
+                  stroke="var(--muted-foreground)"
+                  interval={0}
+                  angle={-35}
+                  textAnchor="end"
+                  height={UI_DIMENSIONS.themeChartLabelHeightPx}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  domain={[0, UI_DIMENSIONS.themeChartYAxisMax]}
+                  ticks={Y_TICKS}
+                  tick={{ fontSize: 12 }}
+                  stroke="var(--muted-foreground)"
+                  width={32}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "var(--popover)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "0.375rem",
+                    fontSize: "0.875rem",
+                  }}
+                  cursor={{ fill: "var(--muted)" }}
+                  formatter={(value) => [
+                    value as number,
+                    statsCopy.charts.themeFrequency.countLabel,
+                  ]}
+                />
+                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                  {data.map((_, idx) => (
+                    <Cell key={idx} fill={BAR_COLOR} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </CardContent>
     </Card>

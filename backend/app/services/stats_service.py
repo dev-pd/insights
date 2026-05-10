@@ -26,7 +26,6 @@ class StatsService:
 
     async def compute_stats(self) -> StatsOut:
         settings = get_settings()
-        top_n = settings.stats_top_themes_limit
         trend_days = settings.stats_trend_days
 
         # Status counts.
@@ -54,9 +53,13 @@ class StatsService:
                 key = theme.lower().strip()
                 if key:
                     theme_counter[key] += 1
+        # Return ALL themes sorted desc by count. No cap — the data IS the
+        # cap at PoC scale (~100 unique themes from a few hundred feedbacks).
+        # The chart owns display (horizontal scroll); production scale would
+        # add pagination here, not a magic number.
         top_themes = [
             ThemeCount(theme=theme, count=count)
-            for theme, count in theme_counter.most_common(top_n)
+            for theme, count in theme_counter.most_common()
         ]
 
         # Daily sentiment trend over the configured window, ending today (UTC).

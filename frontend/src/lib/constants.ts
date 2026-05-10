@@ -27,13 +27,20 @@ export const UI_DIMENSIONS = {
   pasteFormRows: 6,
   /** Fixed height for the theme-frequency vertical bar chart container.
    *  Vertical layout means height is constant regardless of theme count;
-   *  width grows. */
+   *  the chart inner div grows horizontally and scrolls inside the card. */
   themeChartHeightPx: 320,
   /** Y-axis ceiling for the theme-frequency chart. Counts above this clip
    *  rather than rescale, so the visual reference stays stable as data grows. */
   themeChartYAxisMax: 50,
   /** Tick spacing on the theme-frequency chart Y axis (0, 10, 20, …, max). */
   themeChartYAxisStep: 10,
+  /** Minimum horizontal slot per theme bar. Total inner width = max(card,
+   *  themes.length × this). Chart wrapper has overflow-x-auto, so beyond
+   *  the card width the chart scrolls horizontally instead of cramming. */
+  themeChartSlotMinPx: 60,
+  /** XAxis bottom band height — large enough for long rotated labels
+   *  like "android 14 compatibility" at -35° without clipping. */
+  themeChartLabelHeightPx: 90,
   /** Fixed height for the sentiment trend chart container. */
   sentimentTrendHeightPx: 280,
 } as const
