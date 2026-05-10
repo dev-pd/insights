@@ -148,6 +148,70 @@ When using `asyncio.gather` for batch work, always set `return_exceptions=True` 
 
 When calling external services (LLM API, third-party HTTP), use `asyncio.Semaphore` to bound parallel calls. The limit lives in `config.py` as a Setting.
 
+## Repository pattern
+
+All data access lives in `app/repositories/`. One repository per aggregate root (Feedback is the only one for this PoC).
+
+### Structure
+
+Each repository:
+- Takes an `AsyncSession` in the constructor
+- Exposes async methods returning domain types (the SQLAlchemy model is the domain type for this PoC; for larger projects you'd map to separate domain dataclasses)
+- Never returns raw query results, dicts, or rows
+- Hides all SQLAlchemy specifics: `select()`, `where()`, `scalars()`, `execute()` calls live ONLY here
+
+### Pattern
+
+```python
+class FeedbackRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get_by_id(self, feedback_id: UUID) -> Feedback | None:
+        result = await self.session.execute(
+            select(Feedback).where(Feedback.id == feedback_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def create(self, text: str, status: FeedbackStatus) -> Feedback:
+        feedback = Feedback(text=text, status=status)
+        self.session.add(feedback)
+        await self.session.flush()
+        return feedback
+```
+
+### Rules
+
+- One repository class per aggregate root.
+- Repository methods are async.
+- Repository methods never raise `HTTPException`. They raise domain exceptions (`DatabaseError`, `NotFoundError`) and let the service layer translate.
+- Repository methods never construct response shapes. That's the service's job.
+- Use `session.flush()` to assign IDs without committing; commits happen at the request boundary via the `get_session` dependency.
+- Aggregations and complex queries also live in the repository, not the service.
+
+### Service usage
+
+Services receive repositories via FastAPI dependency injection:
+
+```python
+@router.post("/feedback")
+async def create_feedback(
+    payload: FeedbackBatchIn,
+    repo: Annotated[FeedbackRepository, Depends(get_feedback_repository)],
+    ...
+) -> FeedbackBatchOut:
+    return await feedback_service.create_batch(repo, payload, ...)
+```
+
+Where `get_feedback_repository` wraps the session dependency:
+
+```python
+async def get_feedback_repository(
+    session: SessionDep,
+) -> FeedbackRepository:
+    return FeedbackRepository(session)
+```
+
 ## Imports
 
 Order: standard library → third-party → local app modules. Within each group, alphabetical. Use absolute imports always.
