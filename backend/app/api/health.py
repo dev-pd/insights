@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.deps import SessionDep
 from app.schemas import HealthResponse, ReadyResponse
 

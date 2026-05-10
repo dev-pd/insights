@@ -6,10 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.api import ops_router, v1_router
-from app.config import get_settings
+from app.core.config import get_settings
 from app.db import Base, engine
 from app.exceptions import AppError
-from app.logging_config import configure_logging
+from app.core.logging import configure_logging
 from app.middleware import (
     RequestIDMiddleware,
     app_error_handler,
