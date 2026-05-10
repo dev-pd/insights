@@ -1,3 +1,8 @@
+---
+name: llm-workflow
+description: LLM workflow patterns for the feedback extraction backend — tool-use extraction with Pydantic schemas, prompt versioning (immutable past versions, active selector via __init__.py), pre-LLM input validation, async extraction with Celery, the call_llm wrapper (retries/timeout/semaphore/error mapping), cost controls, eval harness with goldens, failure handling, multi-language. Invoke when working in backend/app/llm/.
+---
+
 # LLM workflow
 
 Everything LLM-specific in this codebase: how prompts are versioned, how extraction is structured and validated, how we handle failure, how we control cost, and how we evaluate quality. These patterns reflect current AI engineering best practices for production extraction pipelines.
@@ -269,7 +274,7 @@ Defensible at this scale, here is why:
 
 ## LLM client patterns
 
-The Anthropic client is wrapped in `app/llm/client.py`. Adds production behavior on top of the raw SDK. Full pattern in `production-patterns.md`. LLM-specific summary:
+The Anthropic client is wrapped in `app/llm/client.py`. Adds production behavior on top of the raw SDK.
 
 ### Wrapper responsibilities
 
@@ -283,6 +288,87 @@ The Anthropic client is wrapped in `app/llm/client.py`. Adds production behavior
   - 5xx status → `LLMError`
   - Schema mismatch on Pydantic validation → `LLMValidationError`
 - **Metadata propagation.** Every call attaches `request_id` and `prompt_version` to the API request metadata for upstream tracing.
+
+### Pattern
+
+```python
+import asyncio
+import time
+from anthropic import AsyncAnthropic, APIStatusError, APITimeoutError
+
+from app.config import get_settings
+from app.exceptions import LLMError, LLMTimeoutError, LLMRateLimitError
+
+
+_semaphore: asyncio.Semaphore | None = None
+
+
+def _get_semaphore() -> asyncio.Semaphore:
+    global _semaphore
+    if _semaphore is None:
+        _semaphore = asyncio.Semaphore(get_settings().llm_concurrency_limit)
+    return _semaphore
+
+
+async def call_llm(client: AsyncAnthropic, request_id: str, **kwargs) -> str:
+    settings = get_settings()
+    last_error: Exception | None = None
+
+    async with _get_semaphore():
+        for attempt in range(settings.llm_max_retries + 1):
+            start = time.monotonic()
+            try:
+                response = await client.messages.create(
+                    timeout=settings.llm_timeout_seconds,
+                    **kwargs,
+                )
+                logger.info("llm_call_complete", extra={
+                    "latency_ms": int((time.monotonic() - start) * 1000),
+                    "attempt": attempt,
+                    "input_tokens": response.usage.input_tokens,
+                    "output_tokens": response.usage.output_tokens,
+                    "request_id": request_id,
+                })
+                return response.content[0].text
+
+            except APITimeoutError as e:
+                last_error = LLMTimeoutError(str(e))
+                logger.warning("llm_call_failed", extra={
+                    "event": "llm_call_failed",
+                    "error_type": type(e).__name__,
+                    "attempt": attempt,
+                    "request_id": request_id,
+                })
+            except APIStatusError as e:
+                if e.status_code == 429:
+                    last_error = LLMRateLimitError(str(e))
+                elif e.status_code >= 500:
+                    last_error = LLMError(str(e))
+                else:
+                    logger.warning("llm_call_failed", extra={
+                        "event": "llm_call_failed",
+                        "error_type": type(e).__name__,
+                        "attempt": attempt,
+                        "request_id": request_id,
+                    })
+                    raise LLMError(str(e)) from e
+                logger.warning("llm_call_failed", extra={
+                    "event": "llm_call_failed",
+                    "error_type": type(e).__name__,
+                    "attempt": attempt,
+                    "request_id": request_id,
+                })
+
+            if attempt < settings.llm_max_retries:
+                await asyncio.sleep(2 ** attempt)
+
+    logger.error("llm_call_terminal_failure", extra={
+        "event": "llm_call_terminal_failure",
+        "error_type": type(last_error).__name__ if last_error else "Unknown",
+        "request_id": request_id,
+    })
+    raise last_error or LLMError("All retries exhausted")
+```
 
 ## Cost controls
 
@@ -409,8 +495,8 @@ For a production system with strong non-English requirements: language-specific 
 
 ## What lives elsewhere
 
-- **Custom exception types** (`LLMError`, `LLMTimeoutError`, etc.): `production-patterns.md`
-- **Layered architecture rules** (api/ → services/ → llm/): `architecture.md`
+- **Custom exception types** (`LLMError`, `LLMTimeoutError`, etc.): `backend/CLAUDE.md` (Custom exceptions section)
+- **Layered architecture rules** (api/ → services/ → llm/): `.claude/context/architecture.md`
 - **The prompt-evaluator subagent**: `.claude/agents/prompt-evaluator.md`
 - **Configuration values** (timeouts, concurrency limits, model name): `app/config.py` Settings
 
