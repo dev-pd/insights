@@ -1,0 +1,88 @@
+name: extraction evals
+
+# Gated trigger — only run on PRs that actually touch prompts or evals.
+# A README typo or a frontend tweak shouldn't burn ~$0.01 of Anthropic
+# credit running 15 LLM calls just to check the bar.
+on:
+  pull_request:
+    paths:
+      - "backend/app/llm/prompts/**"
+      - "backend/app/llm/extract.py"
+      - "backend/app/llm/schema.py"
+      - "backend/evals/**"
+      - ".github/workflows/evals.yml"
+  workflow_dispatch:  # also allow manual trigger from the Actions tab
+
+# Concurrency: cancel any in-flight run of this workflow for the same PR
+# when a new commit lands. We only care about the latest state.
+concurrency:
+  group: evals-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run-evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10  # safety net — runs are ~30s with Haiku
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      # ANTHROPIC_API_KEY must be set as a GitHub repo secret. Without
+      # it the harness will fail at first LLM call. Other Settings fields
+      # use code defaults — we don't need a real database or Redis for
+      # evals.
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      DATABASE_URL: "postgresql+asyncpg://placeholder:placeholder@localhost/placeholder"
+      REDIS_URL: "redis://placeholder:6379/0"
+      LLM_MODEL: "claude-haiku-4-5"
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install backend dependencies
+        run: uv sync --no-dev
+
+      - name: Run extraction evals (with --check)
+        # --check exits 1 if any metric drops below the baseline thresholds.
+        # --json emits machine-readable output (captured as an artifact below).
+        # Tee'd to evals.json so the artifact upload step can grab it.
+        run: |
+          uv run python evals/run_evals.py --json --check | tee evals.json
+
+      - name: Upload eval report
+        if: always()  # capture even on failure for postmortem
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report-${{ github.run_id }}
+          path: backend/evals.json
+          retention-days: 30
+
+      - name: Summary on PR
+        if: always()
+        run: |
+          echo "### Extraction eval report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f evals.json ]; then
+            # Inline a compact metrics table. jq is preinstalled on
+            # ubuntu-latest runners.
+            echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|---|---:|" >> $GITHUB_STEP_SUMMARY
+            jq -r '.metrics | to_entries[] | "| \(.key) | \(.value) |"' \
+              evals.json >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Prompt: \`$(jq -r '.prompt_version' evals.json)\`  " >> $GITHUB_STEP_SUMMARY
+            echo "Model: \`$(jq -r '.model' evals.json)\`  " >> $GITHUB_STEP_SUMMARY
+            echo "Cases: $(jq -r '.n_cases' evals.json)  " >> $GITHUB_STEP_SUMMARY
+            echo "Elapsed: $(jq -r '.elapsed_seconds' evals.json)s" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "_no report file produced — harness likely errored before any eval ran_" >> $GITHUB_STEP_SUMMARY
+          fi
