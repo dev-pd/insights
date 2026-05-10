@@ -20,6 +20,10 @@ export const UI_TIMINGS = {
   /** SWR refresh interval for the stats dashboard. 5s is the sweet spot:
    *  fast enough to feel live, slow enough not to hammer the DB. */
   statsDashboardRefreshMs: 5_000,
+  /** Debounce delay for the /feedback search input. 300ms is the standard
+   *  sweet spot — fast enough to feel responsive, slow enough to coalesce
+   *  bursts of keystrokes into one API request. */
+  feedbackSearchDebounceMs: 300,
 } as const
 
 export const UI_DIMENSIONS = {
