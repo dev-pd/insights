@@ -62,6 +62,18 @@ export interface FeedbackPaginatedResponse {
   limit: number
 }
 
+export interface FeedbackBatchRequest {
+  texts: string[]
+}
+
+export interface FeedbackBatchResponse {
+  items: Feedback[]
+  total: number
+  extracted: number
+  skipped: number
+  failed: number
+}
+
 export interface ThemeCount {
   theme: string
   count: number

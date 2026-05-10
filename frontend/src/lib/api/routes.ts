@@ -4,6 +4,7 @@ export const API_ROUTES = {
   ready: "/api/ready",
   // Versioned API
   feedback: "/api/v1/feedback",
+  feedbackBatch: "/api/v1/feedback/batch",
   feedbackPaginated: "/api/v1/feedback/paginated",
   stats: "/api/v1/stats",
 } as const
