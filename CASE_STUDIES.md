@@ -303,6 +303,73 @@ The 500-item Opus run was budgeted at ~$13 based on the original 1250-token esti
 
 ---
 
+## Case study 7 — Anthropic client cached on stale event loop (asyncio.run revisited)
+
+### Symptom
+Worker logs showed a `llm_transient_retry` WARNING immediately after every `extract_feedback_task_started` event — even though every task ultimately completed with HTTP 200 OK and `status=extracted`:
+
+```
+[ForkPoolWorker-3] extract_feedback_task_started
+[ForkPoolWorker-3] llm_transient_retry            ← 13ms later
+[ForkPoolWorker-3] HTTP Request: POST … 200 OK   ← 3.4s later
+[ForkPoolWorker-3] succeeded                     ← clean extraction
+```
+
+The warning is harmless (we recover), but **every task burned ~1s of unnecessary backoff** between the first failed attempt and the retry. On a 100-item drain that's ~100s of wasted wall-clock time. Empirically we measured 3.4s avg latency on Opus when actual extraction was ~2.4s — the extra 1s was this bug.
+
+### Root cause
+**Same pattern as Case Study 1.** `client.py` lazy-inits a module-level `AsyncAnthropic` client. The client wraps an `httpx.AsyncClient` whose connection pool binds to the loop it was created in.
+
+Celery worker tasks bridge sync → async via `asyncio.run()`, which creates a fresh event loop per task. The first task in a fork creates the client + pool bound to **that task's loop**. When the task ends, `asyncio.run()` closes the loop. The next task gets a **new** loop but reuses the same module-level client — whose pool is now orphaned on a dead loop.
+
+First call attempt on that next task: connection-level failure (the pool can't operate on a dead loop) → raised as a connection-class `APIError` → caught by the broad-transient branch in `call_with_retry` → log warning + backoff 1s + retry. The retry creates fresh connection state on the live loop, succeeds.
+
+We fixed this exact pattern for the SQLAlchemy engine in Case Study 1 via `worker_session_scope`. We missed it for the Anthropic client.
+
+### Fix (commit `<this commit>`)
+Loop-aware client cache. Rebuild the client when the current loop differs from the loop that created the cached one:
+
+```python
+_client: AsyncAnthropic | None = None
+_client_loop_id: int | None = None
+
+def get_client() -> AsyncAnthropic:
+    global _client, _client_loop_id
+    try:
+        current_loop_id = id(asyncio.get_running_loop())
+    except RuntimeError:
+        current_loop_id = -1
+
+    if _client is None or _client_loop_id != current_loop_id:
+        settings = get_settings()
+        _client = AsyncAnthropic(api_key=..., timeout=..., max_retries=0)
+        _client_loop_id = current_loop_id
+    return _client
+```
+
+Rebuild is cheap (no DNS/TLS until first call). Old client's pool is left for GC — its loop is closed so there's nothing to explicitly close. On the FastAPI side, the single long-lived loop means the check is a no-op (loop_id stays stable) and the client is reused as before.
+
+### Lesson
+**`asyncio.run()` in Celery means every "module-level lazy-init that touches the loop" is a bug waiting to happen.** Audit list when bridging sync ⇄ async per task:
+- SQLAlchemy async engine (fixed in Case Study 1)
+- Anthropic / httpx client (this case study)
+- `asyncio.Semaphore` — safe ONLY if never contended (lazy-binds on first await; ours has 5 slots and 1 caller, so it never binds)
+- `asyncio.Queue`, `asyncio.Event`, any other primitive that lazy-binds to a loop
+
+The general fix is one of:
+1. **Per-loop cache** (this case study's approach) — track loop id, rebuild on change.
+2. **Per-call construction** — build the resource inside the async body, dispose after (Case Study 1's approach).
+3. **One long-lived loop per worker** via `worker_process_init` — Celery signal, single loop survives all tasks in a fork. Production-scale answer; out of scope for PoC.
+
+The PoC uses (1) for the LLM client and (2) for the DB engine. Both eliminate the cross-loop issue without restructuring the worker bootstrap.
+
+### How we found it
+The bug shipped with Phase 4. We noticed it during a 500-item Opus stress test when a sub-agent's report flagged "`llm_transient_retry` WARNING emitted after every `extract_feedback_task_started`". The agent thought it was a log-ordering artifact; debugging showed it was the real bug above.
+
+A canary: any retry warning that fires "on every task, then succeeds 1-2s later" is this pattern, regardless of which underlying resource is loop-bound. Look for module-level globals that touch the loop.
+
+---
+
 ## Minor issues — also fixed, smaller engineering surface
 
 ### Multi-paste defaulted to "Single" mode

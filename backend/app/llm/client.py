@@ -13,19 +13,48 @@ log = logging.getLogger(__name__)
 T = TypeVar("T")
 
 _client: AsyncAnthropic | None = None
+_client_loop_id: int | None = None
 
 
 def get_client() -> AsyncAnthropic:
-    """Lazy-init module-level Anthropic client. SDK retries disabled —
-    we handle retries explicitly for observability."""
-    global _client
-    if _client is None:
+    """Lazy-init module-level Anthropic client, **scoped to the current event loop**.
+
+    SDK retries disabled — we handle retries explicitly for observability.
+
+    Why the loop check (see Case Study 7 in CASE_STUDIES.md):
+      AsyncAnthropic wraps an httpx AsyncClient whose connection pool binds
+      to the loop it was created in. Celery worker tasks run via
+      asyncio.run() — a fresh loop per task. Without this check, the SECOND
+      task in a fork would reuse a client whose pool lives on a closed loop
+      → first call raises a connection-level APIError → call_with_retry
+      catches it, backs off 1s, retries on the live loop → succeeds. The
+      symptom was a `llm_transient_retry` warning + 1s of wasted backoff on
+      every task after the first per fork.
+
+      Rebuilding the client when the loop changes is cheap (no DNS/TLS
+      until the first call) and eliminates the wasted retry. The previous
+      client is left for GC — its loop is closed so there's nothing to
+      explicitly aclose() on it.
+
+      On the FastAPI backend side, there's one long-lived loop, so this
+      check is a no-op (loop_id stays stable) and the client is reused.
+    """
+    global _client, _client_loop_id
+    try:
+        current_loop_id = id(asyncio.get_running_loop())
+    except RuntimeError:
+        # Called from sync context (shouldn't happen — every caller is
+        # `async def`). Use a sentinel so we don't rebuild on every call.
+        current_loop_id = -1
+
+    if _client is None or _client_loop_id != current_loop_id:
         settings = get_settings()
         _client = AsyncAnthropic(
             api_key=settings.anthropic_api_key.get_secret_value(),
             timeout=float(settings.llm_timeout_seconds),
             max_retries=0,
         )
+        _client_loop_id = current_loop_id
     return _client
 
 
