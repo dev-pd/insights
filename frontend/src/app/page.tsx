@@ -1,4 +1,4 @@
-import { HealthCheck } from "@/components/HealthCheck"
+import { HealthCheck } from "@/components/shared/HealthCheck"
 
 export default function HomePage() {
   return (
