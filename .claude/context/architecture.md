@@ -8,11 +8,16 @@ Source of truth: `backend/app/schemas.py` (Pydantic models).
 
 | Method | Path | Purpose | Body / Query | Response |
 |---|---|---|---|---|
-| POST | `/feedback` | Submit feedback (sync save, async extraction via Celery) | `{ texts: string[] }` | `{ received: int, processed: int, skipped: int, items: FeedbackOut[] }` |
-| GET | `/feedback` | List feedback with optional substring search | `?q=<substring>` | `{ items: FeedbackOut[] }` |
-| GET | `/stats` | Dashboard aggregations | none | `{ themes: [{name, count}], sentiment_dist: {...}, trend: [...], processing_count: int }` |
-| GET | `/events` | SSE stream for live updates | none | event stream (`text/event-stream`) of `feedback_updated` with `FeedbackOut` JSON payloads |
-| GET | `/health` | Liveness check (used by docker-compose healthcheck) | none | `{ status: "ok" }` |
+| POST | `/v1/feedback` | Submit feedback (sync save, async extraction via Celery) | `{ texts: string[] }` | `{ received: int, processed: int, skipped: int, items: FeedbackOut[] }` |
+| GET | `/v1/feedback` | List feedback with optional substring search | `?q=<substring>` | `{ items: FeedbackOut[] }` |
+| GET | `/v1/stats` | Dashboard aggregations | none | `{ themes: [{name, count}], sentiment_dist: {...}, trend: [...], processing_count: int }` |
+| GET | `/v1/events` | SSE stream for live updates | none | event stream (`text/event-stream`) of `feedback_updated` with `FeedbackOut` JSON payloads |
+| GET | `/health` | Liveness — process is running (used by docker-compose healthcheck) | none | `{ status: "ok" }` |
+| GET | `/ready` | Readiness — DB and Redis reachable | none | `{ status: "ok" }` or `503` with `{ database: bool, redis: bool }` |
+
+### Versioning convention
+
+Versioned API routes use URL-based versioning (`/v1/`). Operational routes (`/health`, `/ready`) are unversioned because they're contract-stable infrastructure endpoints. Bumping to `/v2/` is a future-compat path; this PoC ships only `v1`.
 
 ### Response envelope
 
@@ -50,6 +55,10 @@ Status code mapping:
 }
 ```
 
+## OpenAPI metadata
+
+`main.py` configures FastAPI with `title="Feedback Insights API"`, `version="0.1.0"`, and a brief description. `/docs` serves Swagger UI; `/redoc` serves ReDoc.
+
 ## Folder structure
 
 ```
@@ -71,7 +80,7 @@ insights/
 │   │   │   ├── feedback.py         # POST /feedback, GET /feedback
 │   │   │   ├── stats.py            # GET /stats
 │   │   │   ├── events.py           # GET /events (SSE)
-│   │   │   └── health.py           # GET /health
+│   │   │   └── health.py           # GET /health, GET /ready
 │   │   ├── repositories/
 │   │   │   ├── __init__.py
 │   │   │   └── feedback_repository.py # Data access for Feedback entity
