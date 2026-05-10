@@ -44,6 +44,18 @@ export const feedback = {
     noActionItems: "No action items",
     skipReasonLabel: "Skip reason",
   },
+  search: {
+    placeholder: "Search feedback, themes, or actions...",
+    ariaLabel: "Search feedback",
+    clearButton: "Clear search",
+    noResultsTitle: "No matches found",
+    noResultsHint: (query: string) =>
+      `No feedback matches "${query}". Try different terms or clear the search.`,
+    resultCount: (count: number, query: string) =>
+      count === 1
+        ? `1 result for "${query}"`
+        : `${count} results for "${query}"`,
+  },
   filter: {
     sentimentLabel: "Sentiment",
     all: "All sentiments",
