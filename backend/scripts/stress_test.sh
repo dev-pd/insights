@@ -1,8 +1,25 @@
 #!/usr/bin/env bash
-# Usage: stress_test.sh <N>
-#   N items per /batch call. If N > 50 (batch endpoint cap), splits into
-#   chunks of 50 dispatched back-to-back so the worker pool sees the full
-#   load at once.
+# CLI counterpart to the dashboard's "Stress test" button.
+#
+#   bash backend/scripts/stress_test.sh 20    # 20 items
+#   bash backend/scripts/stress_test.sh 50    # 50 items
+#   bash backend/scripts/stress_test.sh 100   # 100 items (chunks into 2x50)
+#
+# Differences vs the UI button / /v1/feedback/stress-test endpoint:
+#   - This script hits /v1/feedback/batch with its own synthesized texts
+#     (cycles a 25-template pool). The endpoint version uses the same
+#     pool but is capped at Settings.stress_test_max_count (default 200).
+#     Use this script to push past the cap, use the UI for a quick 100-
+#     item run.
+#   - This script polls /v1/stats every 2s and prints a live drain log
+#     plus a final summary with p50/p95 latency from llm_usage.
+#
+# Tunables you may want to edit: N (CLI arg), BATCH_CAP, TIMEOUT_S,
+# POLL_INTERVAL_S.
+#
+# N items per /batch call. If N > BATCH_CAP, splits into chunks of
+# BATCH_CAP dispatched back-to-back so the worker pool sees the full
+# load at once.
 set -euo pipefail
 
 N=${1:-20}
