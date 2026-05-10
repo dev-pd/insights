@@ -50,6 +50,15 @@ class Settings(BaseSettings):
     summary_min_feedback_items: int = Field(default=3, ge=1, le=50)
     summary_max_tokens: int = Field(default=300, ge=50, le=2048)
 
+    celery_broker_url: str = "redis://redis:6379/1"
+    celery_result_backend: str = "redis://redis:6379/2"
+    celery_worker_concurrency: int = Field(default=4, ge=1, le=32)
+    celery_task_soft_time_limit_seconds: int = Field(default=120, ge=10)
+    celery_task_time_limit_seconds: int = Field(default=180, ge=10)
+    celery_result_expires_seconds: int = Field(default=3600, ge=60)
+    celery_beat_summary_cron_minute: int = Field(default=0, ge=0, le=59)
+
+    sse_heartbeat_interval_seconds: int = Field(default=30, ge=1, le=300)
     sse_poll_interval_seconds: float = Field(default=1.0, gt=0.0)
     sse_max_stream_duration_minutes: int = Field(default=5, ge=1)
 
