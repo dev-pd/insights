@@ -42,6 +42,28 @@ Cross-cutting items that bit us during phase work. Stack-specific gotchas live i
 - **nginx `proxy_buffering off` + `proxy_read_timeout 24h`** are already on `/api/` from earlier work. Don't add a separate `/api/v1/events` location block — SSE works through the existing one. (Restarting nginx after backend rebuild still required — the upstream-IP-cache gotcha applies.)
 - **EventSource doesn't reconnect on 4xx.** It auto-reconnects on transient drops but not on HTTP errors — so if a backend bug returns 401/404/500 the browser silently stops retrying. Test the SSE endpoint with `curl -N /api/v1/events` after deploys to catch this fast.
 
+- **Dispatch-before-commit race in Celery.** Calling `task.delay()` before the request commits the row meant the worker often beat the commit, queried the DB, saw `not_found`, and returned a clean SUCCESS — leaving the row in PROCESSING forever. Symptom: stress test of 20 items leaves 15-18 zombie rows. Fix: `await session.commit()` BEFORE `.delay()`. The 5-10ms extra latency per submission is worth a guaranteed-visible row.
+
+## Stress testing and capacity
+
+Two paths, same underlying pipeline:
+
+- **Dashboard button** — top-right of `/`, dispatches 100 synthetic items through `POST /v1/feedback/stress-test`. Hard-capped at `Settings.stress_test_max_count` (default 200) so a typo can't burn real budget.
+- **`backend/scripts/stress_test.sh <N>`** — CLI version with live drain logging + latency stats. Goes through `/v1/feedback/batch` and supports any N via 50-item chunking.
+
+**Capacity observed (Haiku default Anthropic tier, 4 prefork workers):**
+
+| N | Drain | Throughput | Failed | Notes |
+|---|---|---|---|---|
+| 20 | 11s | 1.9 items/s | 0 | within rate limits |
+| 50 | 32s | 1.6 items/s | 0 | within rate limits |
+| 100 | 99s | 0.77 items/s | 24% (rate-limited) | Anthropic 429s start dominating |
+| 1000 (extrapolated) | ~20 min | ~0.8 items/s sustained | likely ~25-40% w/o retry-policy tuning | budget concern |
+
+**The ceiling is Anthropic, not us.** Haiku default tier is ~50 RPM (~0.83 calls/s); 4 concurrent workers at ~2s/call push ~2 calls/s — we exceed the rate limit and the SDK gives us 429s. Our retry budget (3 attempts × exponential backoff) absorbs short bursts but exhausts on sustained overload.
+
+**To push higher cleanly:** bump `LLM_MAX_RETRIES` and `CELERY_WORKER_CONCURRENCY` to match your Anthropic tier, or wrap `extract_insights` in `asyncio.Semaphore(settings.llm_concurrency_limit)` to throttle below the rate limit. Both are graduation work — current setup is right for take-home demo scale.
+
 ## What lives elsewhere
 - Subagents: `.claude/agents/`
 - Settings: `.claude/settings.json`
