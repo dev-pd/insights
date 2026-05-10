@@ -3,6 +3,11 @@ export const common = {
     title: "Feedback Insights",
     description: "LLM-powered customer feedback extraction and analytics",
   },
+  nav: {
+    dashboard: "Dashboard",
+    addFeedback: "Add Feedback",
+    feedback: "Feedback",
+  },
   errors: {
     generic: "Something went wrong. Please try again.",
     network: "Could not connect to server.",
