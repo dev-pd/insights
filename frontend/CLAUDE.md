@@ -28,6 +28,19 @@ frontend/src/
         └── stats.ts             # kpis, charts
 ```
 
+### Dashboard layout
+
+The home page (`/`) is the executive view — KPIs + charts only, no input forms. Composition:
+
+- **6 KPI cards** in a responsive grid: `grid-cols-2 sm:grid-cols-3 lg:grid-cols-6`. Order: Total feedback, Positive %, Negative %, This week (with WoW trend arrow), Avg latency, Total tokens.
+- **Two charts side-by-side** below the KPIs (`md:grid-cols-2`):
+  - Top themes — horizontal bar, last 7 days, top 10. Reads from `data.top_themes` (already windowed and capped on the backend).
+  - Sentiment trend — stacked bar, last 14 days. Reads from `data.sentiment_trend`.
+
+`KpiCard` exposes an optional `trend` prop (`"up" | "down" | "flat" | null`) rendered as a colored Unicode arrow with an accessible label. The "This week" KPI is the only consumer; the arrow appears only when `|delta_pct| > 5pp` (under that, render `flat` — small fluctuations look noisy on a small dataset). `delta_pct === null` (last week was zero) hides the arrow entirely and the hint shows `vs last week: -`.
+
+Skeleton count is tied to `KPI_COUNT = 6` so the loading state visually matches the loaded state without a jump.
+
 ## Tooling and versions
 
 - Next.js 16 with App Router (not Pages Router); Turbopack is the default dev/build engine

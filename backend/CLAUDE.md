@@ -239,6 +239,22 @@ where `total = extracted + skipped + failed`.
 
 **Phase 4 graduation path:** the endpoint refactors to dispatch each text to Celery as a separate task and returns the IDs immediately. Status updates flow to the UI via SSE. The service method (`create_feedback_batch`) is the dispatch boundary that won't change shape — only its body.
 
+### Stats schema (Phase 3.3)
+
+`GET /v1/stats` returns a `StatsOut` shaped for the 6-KPI dashboard:
+
+- `total_feedback`, `total_extracted`, `total_skipped`, `total_failed` — status counts.
+- `sentiment_breakdown` — `{positive, neutral, negative}` counts among extracted.
+- `positive_pct`, `negative_pct` — percentages of `total_extracted`. Both `0.0` when `total_extracted == 0` (avoids division-by-zero on an empty dashboard).
+- `weekly_delta` — `{this_week_count, last_week_count, delta_pct}`. Rolling 7-day windows anchored on `now` (UTC), not midnight, so the live dashboard reflects the most recent submission immediately. `delta_pct` is `null` when `last_week_count == 0` so the UI renders `-` rather than infinity.
+- `top_themes` — top-N themes inside the last `stats_theme_window_days` days (default 7), capped at `stats_top_themes_limit` (default 10). Both are Settings — the dashboard answers "what's hot this week", not exhaustive history.
+- `sentiment_trend` — daily counts over `stats_trend_days` (default 14, unchanged).
+- `avg_latency_ms`, `total_input_tokens`, `total_output_tokens` — extraction performance & cost.
+
+**Why two new Settings fields instead of module constants:** `stats_theme_window_days` and `stats_top_themes_limit` are tunable per-environment (a fast-moving product would shrink the window; a quiet one would grow it). Backend conventions forbid module-level numeric constants for tunables.
+
+**Why `count_in_window` uses a half-open interval `[start, end)`:** so back-to-back windows can't double-count the boundary instant. Used by `weekly_delta` for the (now - 14d) → (now - 7d) and (now - 7d) → (now) ranges.
+
 ## Database indexes
 
 All queryable columns have explicit indexes in the SQLAlchemy model. `Feedback` table indexes:
