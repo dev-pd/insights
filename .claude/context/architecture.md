@@ -59,6 +59,12 @@ Status code mapping:
 
 `main.py` configures FastAPI with `title="Feedback Insights API"`, `version="0.1.0"`, and a brief description. `/docs` serves Swagger UI; `/redoc` serves ReDoc.
 
+## Routing topology
+
+Production-shaped docker-compose: an nginx container fronts both backend and frontend, routing `/api/*` to the backend (FastAPI :8000) and everything else to the frontend (Next.js `next start` :3000). The browser sees a single origin via nginx. Only the nginx container has a host port mapping (`FRONTEND_PORT`, default 8080); backend and frontend containers expose ports only on the internal docker network.
+
+The frontend runs as a Node server, not a static export. This preserves the full Next.js feature surface — middleware, server components, server actions, API routes — so adding auth later (NextAuth.js, session middleware, protected server components) is a feature addition, not a deployment rewrite. Static export would force an architectural migration to add any of these.
+
 ## Folder structure
 
 ```
@@ -135,9 +141,11 @@ insights/
 │   ├── package.json
 │   ├── tsconfig.json
 │   ├── tailwind.config.ts
-│   └── next.config.js
+│   ├── next.config.js              # NO output: 'export' — runs as Node server (`next start`)
+│   └── Dockerfile                  # Multi-stage Node build, runs `next start`
 │
-├── docker-compose.yml              # postgres + redis + backend + worker + frontend
+├── docker-compose.yml              # nginx + postgres + redis + backend + worker + frontend
+├── nginx.conf                      # routes /api/* to backend, everything else to frontend
 ├── CLAUDE.md
 ├── NOTES.md
 ├── README.md
