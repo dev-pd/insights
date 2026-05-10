@@ -15,8 +15,8 @@ frontend/src/
 ├── components/
 │   ├── ui/                      # shadcn primitives (uses forwardRef internally for React 18 compat)
 │   ├── shared/                  # Cross-feature: HealthCheck
-│   ├── feedback/                # Phase 2: PasteForm, FeedbackList, FeedbackCard
-│   └── stats/                   # Phase 3: KpiCard, charts
+│   ├── feedback/                # PasteForm, FeedbackList, FeedbackCard
+│   └── stats/                   # KpiCard, ThemeFrequencyChart, SentimentTrendChart, StatsDashboard
 ├── hooks/                       # Phase 4: useFeedbackStream, useToasts
 ├── lib/
 │   ├── api/                     # client.ts, routes.ts, types.ts

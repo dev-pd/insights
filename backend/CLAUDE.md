@@ -11,7 +11,9 @@ backend/app/
 │   ├── health.py                # Operational endpoints (/health, /ready)
 │   └── v1/
 │       ├── router.py            # v1_router composition
-│       └── routes/              # Phase 2-4: feedback.py, stats.py, events.py
+│       └── routes/
+│           ├── feedback.py      # POST /v1/feedback, GET /v1/feedback
+│           └── stats.py         # GET /v1/stats (Phase 4 will add /events SSE)
 ├── core/
 │   ├── config.py                # Pydantic Settings
 │   └── logging.py               # JSON logging setup
@@ -21,13 +23,16 @@ backend/app/
 ├── models/
 │   └── feedback.py              # Feedback SQLAlchemy model
 ├── repositories/
-│   └── feedback_repository.py   # Data access for Feedback
+│   └── feedback_repository.py   # Data access for Feedback (CRUD + aggregations)
 ├── schemas/
 │   ├── feedback.py              # FeedbackOut, FeedbackListResponse, ErrorResponse
-│   └── health.py                # HealthResponse, ReadyResponse
-├── services/                    # Phase 2: feedback_service, Phase 3: stats_service
-├── llm/                         # Phase 2: client, extract, validate, schema
-│   └── prompts/                 # Phase 2: v1.py + __init__ exports ACTIVE
+│   ├── health.py                # HealthResponse, ReadyResponse
+│   └── stats.py                 # StatsOut, ThemeCount, SentimentBreakdown, SentimentTrendPoint
+├── services/
+│   ├── feedback_service.py      # validate → extract → persist
+│   └── stats_service.py         # aggregate counts, themes, trends
+├── llm/                         # client, extract, validate, schema
+│   └── prompts/                 # v1.py + __init__ selects ACTIVE
 ├── constants.py                 # FeedbackStatus, SkipReason StrEnums
 ├── db.py                        # Engine, Base, async session factory ONLY
 ├── exceptions.py                # AppError hierarchy
