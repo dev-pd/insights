@@ -731,7 +731,13 @@ Frontend-specific things we've hit. Cross-cutting gotchas (nginx restart, `.env`
 
 - **No barrel files in `locales/`, `components/`, `hooks/`, or `lib/`.** Direct leaf-file imports only. `import { feedback } from "@/locales/en/feedback"`. The Modern Patterns section above explains why; the lint check is `find src -name "index.ts" -not -path "*/node_modules/*"` should return zero matches.
 
-- **recharts has no native "frozen axis" support.** When a chart needs to scroll horizontally but keep the Y axis visible (or vice versa), the pattern is **two BarChart instances side-by-side in a flex row**: one fixed-width chart with the Y axis only (zero plot area) and one scrollable chart with bars + X axis. Both MUST share: `domain`, `ticks`, top + bottom margin, and XAxis band height — diverge any of those and the Y labels drift out of alignment with the bars. See `ThemeFrequencyChart.tsx` for the canonical implementation. Don't try to CSS `position: sticky` the Y axis — it's part of the SVG, not a separate DOM node.
+- **recharts has no native "frozen axis" support, and the obvious "two-chart sidecar" approach silently breaks.** Tried first: render a fixed-width left chart with `<YAxis />` only and a scrollable right chart with `<YAxis hide />`. **Doesn't work** — when the YAxis takes the entire container width, recharts has zero plot area to position tick labels against, and the labels just don't render (the left chart shows as an empty box). The working pattern is **HTML-positioned axis labels** computed from shared geometry constants (top margin, bottom margin, XAxis band height, Y domain max). See `ThemeFrequencyChart.tsx`:
+  ```
+  plotTopPx = TOP_MARGIN_PX
+  plotBottomPx = chartHeight - BOTTOM_MARGIN_PX - labelHeight
+  topPx for tick T = plotBottomPx - (T / max) * (plotBottomPx - plotTopPx) - lineHalfHeight
+  ```
+  Render `<span class="absolute" style={{top: topPx}}>{T}</span>` inside a `position: relative` sidecar, with the scrollable chart next to it (`overflow-x-auto`, `<YAxis hide width={0} />`, same `domain`/`ticks` so bars scale correctly). Add `<CartesianGrid horizontal vertical={false} />` so the rows visually carry from the static labels into the scrolling bars. Don't try CSS `position: sticky` on the SVG axis — it's not a separate DOM node.
 
 - **Pin chart Y/X axis domains for visual stability when data scales.** Auto-scaled axes look great on a single screenshot but make day-over-day comparison impossible — a bar that meant "10 mentions" yesterday and "10 mentions" today renders at different heights when the dataset grows. Use explicit `domain={[0, MAX]}` + `ticks={[...]}` from `UI_DIMENSIONS` constants. Counts above the ceiling clip rather than rescale; document the ceiling so future readers know it's intentional.
 

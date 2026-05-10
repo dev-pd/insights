@@ -3,6 +3,7 @@
 import {
   Bar,
   BarChart,
+  CartesianGrid,
   Cell,
   ResponsiveContainer,
   Tooltip,
@@ -35,10 +36,8 @@ const Y_TICKS = Array.from(
   (_, i) => i * UI_DIMENSIONS.themeChartYAxisStep,
 )
 
-// Shared chart geometry. Both the frozen-Y chart and the scrollable
-// bars chart use the same top + bottom margin AND the same XAxis band
-// height so their plot areas line up pixel-for-pixel. If you change one,
-// change the other.
+// Shared chart geometry. The HTML Y-axis sidecar computes label positions
+// from these constants — they MUST match the BarChart's margins.
 const TOP_MARGIN_PX = 8
 const BOTTOM_MARGIN_PX = 8
 
@@ -68,7 +67,19 @@ export function ThemeFrequencyChart({ themes }: ThemeFrequencyChartProps) {
   const chartHeight = UI_DIMENSIONS.themeChartHeightPx
   const yAxisWidth = UI_DIMENSIONS.themeChartYAxisWidthPx
   const labelHeight = UI_DIMENSIONS.themeChartLabelHeightPx
+  const yAxisMax = UI_DIMENSIONS.themeChartYAxisMax
   const innerWidthPx = themes.length * UI_DIMENSIONS.themeChartSlotMinPx
+
+  // Compute pixel positions for Y-axis tick labels. The plot area inside
+  // the recharts BarChart starts at TOP_MARGIN_PX from the top and ends
+  // at chartHeight - BOTTOM_MARGIN_PX - labelHeight (where the XAxis band
+  // begins). Bars grow from the bottom; tick value V at fraction V/max
+  // up the plot area.
+  const plotTopPx = TOP_MARGIN_PX
+  const plotBottomPx = chartHeight - BOTTOM_MARGIN_PX - labelHeight
+  const plotInnerHeight = plotBottomPx - plotTopPx
+  // Roughly center 12px-fontSize labels on their tick line.
+  const LABEL_VERTICAL_OFFSET_PX = 7
 
   return (
     <Card>
@@ -80,45 +91,42 @@ export function ThemeFrequencyChart({ themes }: ThemeFrequencyChartProps) {
       </CardHeader>
       <CardContent>
         {/*
-          Dual-chart "frozen Y axis" pattern. recharts has no native
-          frozen-axis support, so we render two BarChart instances side by
-          side: a fixed-width left chart that only shows the Y axis (zero
-          plot area) and a scrollable right chart with the bars + X axis.
+          "Frozen Y axis" via HTML labels positioned to match the recharts
+          plot-area pixel coordinates. The recharts chart on the right hides
+          its own YAxis (width=0) but keeps the same domain + ticks so bar
+          heights map to the same scale our HTML labels reference. A
+          CartesianGrid with horizontal lines makes the alignment visible.
 
-          For the Y labels to line up with the right chart's bars, both
-          MUST share: domain, ticks, top + bottom margin, and XAxis band
-          height. Diverge any of those and the alignment drifts.
+          Why HTML, not a second recharts chart: a YAxis-only BarChart with
+          width=44 leaves zero plot area, and recharts won't render tick
+          labels against a zero-width plot. HTML sidesteps this entirely.
         */}
         <div className="flex">
-          {/* Frozen Y axis */}
+          {/* Frozen Y axis (HTML labels at computed pixel positions) */}
           <div
-            style={{ width: yAxisWidth, height: chartHeight }}
+            style={{
+              width: yAxisWidth,
+              height: chartHeight,
+              position: "relative",
+            }}
             className="flex-shrink-0"
             aria-hidden="true"
           >
-            <ResponsiveContainer>
-              <BarChart
-                data={data}
-                margin={{
-                  top: TOP_MARGIN_PX,
-                  right: 0,
-                  bottom: BOTTOM_MARGIN_PX,
-                  left: 0,
-                }}
-              >
-                <YAxis
-                  allowDecimals={false}
-                  domain={[0, UI_DIMENSIONS.themeChartYAxisMax]}
-                  ticks={Y_TICKS}
-                  tick={{ fontSize: 12 }}
-                  stroke="var(--muted-foreground)"
-                  width={yAxisWidth}
-                />
-                {/* Same XAxis height as the scrolling chart, hidden so it
-                    just reserves vertical space for alignment. */}
-                <XAxis dataKey="theme" hide height={labelHeight} />
-              </BarChart>
-            </ResponsiveContainer>
+            {Y_TICKS.map((tick) => {
+              const topPx =
+                plotBottomPx -
+                (tick / yAxisMax) * plotInnerHeight -
+                LABEL_VERTICAL_OFFSET_PX
+              return (
+                <span
+                  key={tick}
+                  className="absolute text-xs text-muted-foreground tabular-nums"
+                  style={{ top: `${topPx}px`, right: "8px" }}
+                >
+                  {tick}
+                </span>
+              )
+            })}
           </div>
 
           {/* Scrollable bars + X axis */}
@@ -140,9 +148,15 @@ export function ThemeFrequencyChart({ themes }: ThemeFrequencyChartProps) {
                     left: 0,
                   }}
                 >
+                  <CartesianGrid
+                    horizontal
+                    vertical={false}
+                    stroke="var(--border)"
+                    strokeDasharray="3 3"
+                  />
                   <YAxis
                     hide
-                    domain={[0, UI_DIMENSIONS.themeChartYAxisMax]}
+                    domain={[0, yAxisMax]}
                     ticks={Y_TICKS}
                     width={0}
                   />
