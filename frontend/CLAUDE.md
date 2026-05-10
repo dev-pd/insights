@@ -2,6 +2,30 @@
 
 How to write TypeScript and React code in this project. Applies to everything under `frontend/`. These are non-negotiable conventions: when generating or editing frontend code, follow them without exception.
 
+## Folder structure
+
+```
+frontend/src/
+├── app/                         # Next.js App Router
+│   ├── layout.tsx               # Server component, root layout
+│   ├── page.tsx                 # Home page
+│   ├── error.tsx                # Route-level error boundary ('use client')
+│   ├── not-found.tsx            # 404 page
+│   └── globals.css              # Tailwind directives + shadcn CSS variables
+├── components/
+│   ├── ui/                      # shadcn primitives (button, card, badge, etc.)
+│   ├── shared/                  # Cross-feature: HealthCheck
+│   ├── feedback/                # Phase 2: PasteForm, FeedbackList, FeedbackCard
+│   └── stats/                   # Phase 3: KpiCard, ThemeFrequencyChart, SentimentTrendChart
+├── hooks/                       # Phase 4: useFeedbackStream, useDebouncedValue
+└── lib/
+    ├── api/
+    │   ├── client.ts            # apiClient + fetcher (generic)
+    │   ├── routes.ts            # API_ROUTES constant
+    │   └── types.ts             # TypeScript interfaces matching backend Pydantic
+    └── utils.ts                 # cn() helper from shadcn
+```
+
 ## Tooling and versions
 
 - Next.js 14 with App Router (not Pages Router)

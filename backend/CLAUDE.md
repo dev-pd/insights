@@ -2,6 +2,41 @@
 
 How to write Python code in this project. Applies to everything under `backend/`. These are non-negotiable conventions: when generating or editing backend code, follow them without exception.
 
+## Folder structure
+
+```
+backend/app/
+├── api/
+│   ├── deps.py                  # API-level dependencies
+│   ├── health.py                # Operational endpoints (/health, /ready)
+│   └── v1/
+│       ├── router.py            # v1_router composition
+│       └── routes/              # Phase 2-4: feedback.py, stats.py, events.py
+├── core/
+│   ├── config.py                # Pydantic Settings
+│   └── logging.py               # JSON logging setup
+├── middleware/
+│   ├── request_id.py            # RequestIDMiddleware
+│   └── exceptions.py            # Exception handlers
+├── models/
+│   └── feedback.py              # Feedback SQLAlchemy model
+├── repositories/
+│   └── feedback_repository.py   # Data access for Feedback
+├── schemas/
+│   ├── feedback.py              # FeedbackOut, FeedbackListResponse, ErrorResponse
+│   └── health.py                # HealthResponse, ReadyResponse
+├── services/                    # Phase 2: feedback_service, Phase 3: stats_service
+├── llm/                         # Phase 2: client, extract, validate, schema
+│   └── prompts/                 # Phase 2: v1.py + __init__ exports ACTIVE
+├── constants.py                 # FeedbackStatus, SkipReason StrEnums
+├── db.py                        # Engine, Base, async session factory ONLY
+├── exceptions.py                # AppError hierarchy
+└── main.py                      # App factory, lifespan, router mounting
+
+backend/tests/                   # pytest tests (Phase 5)
+backend/evals/                   # Standalone eval scripts (Phase 5)
+```
+
 ## Python version and tooling
 
 - Python 3.11 minimum. Use modern syntax: `str | None` instead of `Optional[str]`, `list[str]` instead of `List[str]`.
