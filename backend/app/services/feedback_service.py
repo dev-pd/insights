@@ -73,3 +73,46 @@ class FeedbackService:
         return await self.repo.list_paginated(
             offset=offset, limit=limit, sentiment=sentiment
         )
+
+    async def create_feedback_batch(self, texts: list[str]) -> list[Feedback]:
+        """Process a batch of feedback texts sequentially.
+
+        Sequential — not asyncio.gather — for two reasons:
+          1. Anthropic rate limits (RPM/TPM) bite quickly on parallel batches.
+          2. The shared async session doesn't tolerate concurrent commits well;
+             one rolled-back transaction would poison the others.
+
+        Per-item failures are isolated: any unexpected exception during a single
+        item gets caught, logged, and persisted as a FAILED row so the user sees
+        what happened rather than a silent drop. The whole batch keeps moving.
+
+        Phase 4 graduation: each text dispatches as its own Celery task and the
+        UI reads status updates over SSE. This sync method is the dispatch
+        boundary that won't change shape — only its body.
+        """
+        results: list[Feedback] = []
+        total = len(texts)
+        for i, text in enumerate(texts):
+            try:
+                feedback = await self.create_feedback(text)
+                results.append(feedback)
+                log.info(
+                    "batch_item_processed",
+                    extra={"index": i, "total": total, "status": feedback.status},
+                )
+            except Exception as e:  # noqa: BLE001 — fault isolation per item
+                log.exception(
+                    "batch_item_failed",
+                    extra={"index": i, "total": total, "error_type": type(e).__name__},
+                )
+                failed_row = await self.repo.create(
+                    text=text,
+                    status=FeedbackStatus.FAILED,
+                    llm_metadata={
+                        "error_type": type(e).__name__,
+                        "error": str(e),
+                        "context": "batch_processing",
+                    },
+                )
+                results.append(failed_row)
+        return results

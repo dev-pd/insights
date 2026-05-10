@@ -4,6 +4,7 @@ from fastapi import APIRouter, Query, status
 from pydantic import BaseModel, Field
 
 from app.api.deps import FeedbackServiceDep, SettingsDep
+from app.constants import FeedbackStatus
 from app.schemas.feedback import FeedbackOut, FeedbackPaginatedResponse
 
 router = APIRouter()
@@ -69,4 +70,48 @@ async def list_feedback_paginated(
         total=total,
         offset=offset,
         limit=limit,
+    )
+
+
+class FeedbackBatchRequest(BaseModel):
+    # max_length=50 caps batch size for sync processing under Anthropic rate
+    # limits and request-timeout budgets. Phase 4 raises this once Celery
+    # dispatches each text as its own task.
+    texts: list[str] = Field(min_length=1, max_length=50)
+
+
+class FeedbackBatchResponse(BaseModel):
+    items: list[FeedbackOut]
+    total: int = Field(description="Total items processed (success + skipped + failed).")
+    extracted: int
+    skipped: int
+    failed: int
+
+
+@router.post(
+    "/batch",
+    response_model=FeedbackBatchResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_feedback_batch(
+    payload: FeedbackBatchRequest,
+    service: FeedbackServiceDep,
+) -> FeedbackBatchResponse:
+    """Process 1-50 feedback items in one request.
+
+    Sequential processing on the backend — see FeedbackService docstring for the
+    rate-limit + session-contention rationale. Per-item failures are isolated.
+    """
+    results = await service.create_feedback_batch(payload.texts)
+
+    extracted = sum(1 for r in results if r.status == FeedbackStatus.EXTRACTED.value)
+    skipped = sum(1 for r in results if r.status == FeedbackStatus.SKIPPED.value)
+    failed = sum(1 for r in results if r.status == FeedbackStatus.FAILED.value)
+
+    return FeedbackBatchResponse(
+        items=[FeedbackOut.model_validate(r) for r in results],
+        total=len(results),
+        extracted=extracted,
+        skipped=skipped,
+        failed=failed,
     )
