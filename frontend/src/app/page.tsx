@@ -4,6 +4,7 @@ import useSWR, { useSWRConfig } from "swr"
 
 import { ProcessingPill } from "@/components/stats/ProcessingPill"
 import { StatsDashboard } from "@/components/stats/StatsDashboard"
+import { StressTestButton } from "@/components/stats/StressTestButton"
 import { useFeedbackStream } from "@/hooks/useFeedbackStream"
 import { fetcher } from "@/lib/api/client"
 import { API_ROUTES } from "@/lib/api/routes"
@@ -38,7 +39,14 @@ export default function Home() {
     <main className="container mx-auto max-w-5xl px-4 py-8 flex flex-col gap-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 className="text-2xl font-bold">{statsCopy.kpis.sectionTitle}</h1>
-        <ProcessingPill count={pendingCount} />
+        {/* Pill and button share the same slot: pill renders when items
+            are processing, button when the pool is idle. Both components
+            self-hide so the slot is always one element. */}
+        {pendingCount > 0 ? (
+          <ProcessingPill count={pendingCount} />
+        ) : (
+          <StressTestButton />
+        )}
       </div>
 
       <StatsDashboard />

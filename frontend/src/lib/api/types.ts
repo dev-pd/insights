@@ -74,6 +74,16 @@ export interface FeedbackBatchResponse {
   failed: number
 }
 
+export interface StressTestRequest {
+  count: number
+}
+
+export interface StressTestResponse {
+  dispatched: number
+  skipped: number
+  failed: number
+}
+
 export interface Summary {
   text: string
   /** ISO 8601 UTC timestamp. */

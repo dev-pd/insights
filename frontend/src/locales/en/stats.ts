@@ -46,6 +46,16 @@ export const stats = {
     pillLabel: (count: number) =>
       count === 1 ? "1 processing" : `${count} processing`,
   },
+  stressTest: {
+    buttonLabel: (count: number) => `Stress test (${count})`,
+    submitting: "Dispatching...",
+    successToast: (count: number) =>
+      count === 1
+        ? "Dispatched 1 synthetic feedback"
+        : `Dispatched ${count} synthetic feedbacks`,
+    errorToast: "Could not start stress test. Try again.",
+    title: "Dispatch a batch of synthetic feedback to load-test the pipeline.",
+  },
   summary: {
     title: "Today's summary",
     refreshButton: "Refresh",

@@ -10,4 +10,5 @@ export const API_ROUTES = {
   summary: "/api/v1/summary",
   summaryRefresh: "/api/v1/summary/refresh",
   events: "/api/v1/events",
+  feedbackStressTest: "/api/v1/feedback/stress-test",
 } as const
