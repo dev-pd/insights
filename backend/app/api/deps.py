@@ -42,8 +42,11 @@ async def get_feedback_service(
 FeedbackServiceDep = Annotated[FeedbackService, Depends(get_feedback_service)]
 
 
-async def get_stats_service(repo: FeedbackRepoDep) -> StatsService:
-    return StatsService(repo)
+async def get_stats_service(
+    repo: FeedbackRepoDep,
+    llm_usage_repo: LlmUsageRepoDep,
+) -> StatsService:
+    return StatsService(repo, llm_usage_repo)
 
 
 StatsServiceDep = Annotated[StatsService, Depends(get_stats_service)]

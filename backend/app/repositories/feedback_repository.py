@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from sqlalchemy import Float, Integer, Text, desc, func, or_, select
+from sqlalchemy import Text, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import FeedbackStatus, SkipReason
@@ -175,43 +175,3 @@ class FeedbackRepository:
         result = await self.session.execute(stmt)
         return [(row[0] or [], row[1], row[2]) for row in result.all()]
 
-    async def avg_latency_ms(self) -> float | None:
-        """Average LLM latency across extracted feedback. None if no rows."""
-        # JSONB key access via [...].astext, then cast to numeric for AVG.
-        # Postgres-specific syntax (asyncpg / SQLAlchemy 2.0).
-        stmt = (
-            select(
-                func.avg(
-                    func.cast(
-                        Feedback.llm_metadata["latency_ms"].astext, Float
-                    )
-                )
-            )
-            .where(Feedback.status == FeedbackStatus.EXTRACTED.value)
-            .where(Feedback.llm_metadata.isnot(None))
-        )
-        result = await self.session.execute(stmt)
-        value = result.scalar_one_or_none()
-        return float(value) if value is not None else None
-
-    async def total_tokens(self) -> tuple[int, int]:
-        """Sum of (input_tokens, output_tokens) across all extractions."""
-        stmt = (
-            select(
-                func.sum(
-                    func.cast(
-                        Feedback.llm_metadata["input_tokens"].astext, Integer
-                    )
-                ),
-                func.sum(
-                    func.cast(
-                        Feedback.llm_metadata["output_tokens"].astext, Integer
-                    )
-                ),
-            )
-            .where(Feedback.status == FeedbackStatus.EXTRACTED.value)
-            .where(Feedback.llm_metadata.isnot(None))
-        )
-        result = await self.session.execute(stmt)
-        row = result.one()
-        return (row[0] or 0, row[1] or 0)

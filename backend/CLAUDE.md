@@ -280,6 +280,26 @@ where `total = extracted + skipped + failed`.
 
 **Why no tool_use forcing here:** we want plain prose, not a JSON schema. `extract.py` forces tool_use because the downstream code reads structured fields; `summarize.py` reads text content directly.
 
+### LLM usage audit (Phase 3.4.1)
+
+Every successful LLM API call records one row in `llm_usage` (model `app/models/llm_usage.py`, repo `app/repositories/llm_usage_repository.py`). Single source of truth for cost, latency, and prompt-version analytics across the whole app.
+
+Columns:
+- `call_type` — `"extraction" | "summary"` (more in Phase 4)
+- `model` — id from the API response, stored verbatim
+- `input_tokens`, `output_tokens`, `latency_ms`
+- `prompt_version` — which prompt produced this row (powers per-version eval cost comparisons)
+- `feedback_id` — FK to `feedback.id`, nullable, `ON DELETE SET NULL` (extraction calls only; summary calls aggregate over many rows so feedback_id is NULL)
+
+Write sites:
+- `FeedbackService.create_feedback` — records after persisting the feedback so `feedback.id` exists for the FK. Skipped (validation rejection) and failed (LLM error caught) paths don't record — no successful response → no token counts to capture.
+- `SummaryService._generate_and_cache` — records only when `metadata.input_tokens > 0`. The "not enough data" sentinel returns `input_tokens=0` and we don't want to inflate the count for a call that didn't happen.
+
+Read sites:
+- `StatsService.compute_stats` — `total_tokens()` and `avg_latency_ms()` come from `LlmUsageRepository` so the dashboard "Total tokens" KPI reflects ALL LLM cost (extraction + summary + future). Manual summary refreshes visibly bump the count after the next SWR refresh.
+
+The shared request-scoped session means each LLM call's `feedback` row + `llm_usage` row commit atomically — a request failure rolls back both. Phase 4 graduation (Celery extraction tasks, scheduled summary regen) instruments the same table without further refactoring; per-call-site dimensions surface as one `GROUP BY call_type` away.
+
 **Phase 4 graduation:** Celery Beat adds scheduled regeneration so the dashboard never has cold-cache loads. The `SummaryService.get_summary` shape is the dispatch boundary that won't change — only the trigger.
 
 ## Database indexes

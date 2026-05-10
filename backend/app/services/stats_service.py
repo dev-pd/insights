@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from app.constants import FeedbackStatus
 from app.core.config import get_settings
 from app.repositories.feedback_repository import FeedbackRepository
+from app.repositories.llm_usage_repository import LlmUsageRepository
 from app.schemas.stats import (
     SentimentBreakdown,
     SentimentTrendPoint,
@@ -36,8 +37,13 @@ class StatsService:
     themes table; see NOTES.md for the graduation path.
     """
 
-    def __init__(self, repo: FeedbackRepository):
+    def __init__(
+        self,
+        repo: FeedbackRepository,
+        llm_usage_repo: LlmUsageRepository,
+    ):
         self.repo = repo
+        self.llm_usage_repo = llm_usage_repo
 
     async def compute_stats(self) -> StatsOut:
         settings = get_settings()
@@ -126,9 +132,12 @@ class StatsService:
             for day, counts in sorted(trend_buckets.items())
         ]
 
-        # Latency + tokens.
-        avg_latency_ms = await self.repo.avg_latency_ms()
-        input_tokens, output_tokens = await self.repo.total_tokens()
+        # Latency + tokens. Read from the llm_usage audit table so the
+        # totals reflect ALL LLM call types (extraction + summary + future
+        # Phase 4 work), not just the extraction calls that left metadata
+        # on a Feedback row.
+        avg_latency_ms = await self.llm_usage_repo.avg_latency_ms()
+        input_tokens, output_tokens = await self.llm_usage_repo.total_tokens()
 
         return StatsOut(
             total_feedback=total_feedback,
