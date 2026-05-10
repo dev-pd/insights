@@ -77,7 +77,7 @@ export function StatsDashboard() {
   }
 
   const totalTokens = data.total_input_tokens + data.total_output_tokens
-  const trend = trendDirection(data.weekly_delta.delta_pct)
+  const trend = trendDirection(data.today_delta.delta_pct)
 
   return (
     <section className="flex flex-col gap-4">
@@ -86,6 +86,7 @@ export function StatsDashboard() {
           label={statsCopy.kpis.totalFeedback}
           value={data.total_feedback}
           hint={statsCopy.kpis.extractedHint(
+            data.total_extracted,
             data.total_skipped,
             data.total_failed,
           )}
@@ -107,10 +108,10 @@ export function StatsDashboard() {
           )}
         />
         <KpiCard
-          label={statsCopy.kpis.thisWeek}
-          value={data.weekly_delta.this_week_count}
+          label={statsCopy.kpis.today}
+          value={data.today_delta.today_count}
           trend={trend}
-          hint={statsCopy.kpis.weekOverWeek(data.weekly_delta.delta_pct)}
+          hint={statsCopy.kpis.dayOverDay(data.today_delta.delta_pct)}
         />
         <KpiCard
           label={statsCopy.kpis.avgLatency}

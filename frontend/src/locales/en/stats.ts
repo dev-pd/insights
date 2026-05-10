@@ -4,16 +4,20 @@ export const stats = {
     totalFeedback: "Total feedback",
     positivePct: "Positive",
     negativePct: "Negative",
-    thisWeek: "This week",
+    today: "Today",
     avgLatency: "Avg latency",
     totalTokens: "Total tokens",
-    weekOverWeek: (delta: number | null) => {
-      if (delta === null) return "vs last week: -"
+    dayOverDay: (delta: number | null) => {
+      if (delta === null) return "vs yesterday: -"
       const sign = delta > 0 ? "+" : ""
-      return `vs last week: ${sign}${delta.toFixed(1)}%`
+      return `vs yesterday: ${sign}${delta.toFixed(1)}%`
     },
-    extractedHint: (skipped: number, failed: number) =>
-      `${skipped} skipped, ${failed} failed`,
+    // The hint now leads with `extracted` so users see the live-growing
+    // count during a drain — that was previously implicit (total minus
+    // skipped minus failed) and made the dashboard look stuck during a
+    // stress test where total had already jumped at dispatch.
+    extractedHint: (extracted: number, skipped: number, failed: number) =>
+      `${extracted} extracted, ${skipped} skipped, ${failed} failed`,
     sentimentCountHint: (count: number) =>
       count === 1 ? "1 feedback item" : `${count} feedback items`,
     tokensHint: (input: number, output: number) =>

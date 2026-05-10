@@ -25,14 +25,23 @@ class SentimentTrendPoint(BaseModel):
     negative: int = 0
 
 
-class WeeklyDelta(BaseModel):
-    """Comparison between this week (last 7 days) and the prior 7-day window."""
+class TodayDelta(BaseModel):
+    """Comparison between the last 24 hours and the prior 24-hour window.
 
-    this_week_count: int = Field(description="Total feedback in the last 7 days.")
-    last_week_count: int = Field(description="Total feedback in the prior 7 days (7-14 days ago).")
+    Chosen over a 7-day rolling window so the number is meaningfully different
+    from `total_feedback` even on short-lived datasets (a demo with < 7 days
+    of history would otherwise show this_week == total → looks like a bug).
+    Also aligns with the AI summary widget's 24h lookback for cohort
+    consistency between the KPI tile and the summary text.
+    """
+
+    today_count: int = Field(description="Total feedback in the last 24 hours.")
+    yesterday_count: int = Field(
+        description="Total feedback in the prior 24-hour window (24-48 hours ago)."
+    )
     delta_pct: float | None = Field(
         default=None,
-        description="Percent change vs last week. Null when last week was zero "
+        description="Percent change vs yesterday. Null when yesterday's count was zero "
         "(division-by-zero — UI shows '-' rather than infinity).",
     )
 
@@ -61,8 +70,8 @@ class StatsOut(BaseModel):
         default=0.0,
         description="Percent of extracted feedback labeled negative. 0.0 when none extracted.",
     )
-    weekly_delta: WeeklyDelta = Field(
-        description="Week-over-week change in submission volume.",
+    today_delta: TodayDelta = Field(
+        description="Day-over-day change in submission volume.",
     )
     top_themes: list[ThemeCount] = Field(
         description="Top themes within the last `stats_theme_window_days` days, "

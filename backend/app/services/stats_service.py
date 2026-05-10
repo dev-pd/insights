@@ -10,7 +10,7 @@ from app.schemas.stats import (
     SentimentTrendPoint,
     StatsOut,
     ThemeCount,
-    WeeklyDelta,
+    TodayDelta,
 )
 
 
@@ -20,12 +20,12 @@ def _percentage(part: int, total: int) -> float:
     return round((part / total) * 100, 1)
 
 
-def _delta_pct(this_week: int, last_week: int) -> float | None:
-    """Percent change vs prior week. Returns None when last_week is zero
+def _delta_pct(current: int, previous: int) -> float | None:
+    """Percent change vs the previous window. Returns None when previous is zero
     (division-by-zero) so the UI can render '-' rather than infinity or NaN."""
-    if last_week == 0:
+    if previous == 0:
         return None
-    return round(((this_week - last_week) / last_week) * 100, 1)
+    return round(((current - previous) / previous) * 100, 1)
 
 
 class StatsService:
@@ -72,19 +72,20 @@ class StatsService:
         positive_pct = _percentage(positive, total_extracted)
         negative_pct = _percentage(negative, total_extracted)
 
-        # Weekly delta — rolling 7-day windows anchored on `now`. Not aligned
-        # to midnight so the live dashboard reflects the most recent submission
-        # immediately (matters for the take-home demo); aligning to midnight
-        # would smooth this out at the cost of staleness.
+        # Today delta — rolling 24-hour windows anchored on `now`. Chosen over
+        # a 7-day window so the number differs from `total_feedback` even on
+        # short-lived demos (a 14-hour-old dataset would otherwise have
+        # this_week == total → looks broken). Also matches the AI summary
+        # widget's 24h lookback so the two widgets describe the same cohort.
         now = datetime.now(timezone.utc)
-        this_week_start = now - timedelta(days=7)
-        last_week_start = now - timedelta(days=14)
-        this_week_count = await self.repo.count_in_window(this_week_start, now)
-        last_week_count = await self.repo.count_in_window(last_week_start, this_week_start)
-        weekly_delta = WeeklyDelta(
-            this_week_count=this_week_count,
-            last_week_count=last_week_count,
-            delta_pct=_delta_pct(this_week_count, last_week_count),
+        today_start = now - timedelta(hours=24)
+        yesterday_start = now - timedelta(hours=48)
+        today_count = await self.repo.count_in_window(today_start, now)
+        yesterday_count = await self.repo.count_in_window(yesterday_start, today_start)
+        today_delta = TodayDelta(
+            today_count=today_count,
+            yesterday_count=yesterday_count,
+            delta_pct=_delta_pct(today_count, yesterday_count),
         )
 
         # Themes + sentiment trend share one DB read.
@@ -149,7 +150,7 @@ class StatsService:
             sentiment_breakdown=sentiment_breakdown,
             positive_pct=positive_pct,
             negative_pct=negative_pct,
-            weekly_delta=weekly_delta,
+            today_delta=today_delta,
             top_themes=top_themes,
             sentiment_trend=sentiment_trend,
             avg_latency_ms=avg_latency_ms,

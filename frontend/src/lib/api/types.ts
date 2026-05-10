@@ -116,10 +116,10 @@ export interface SentimentTrendPoint {
   negative: number
 }
 
-export interface WeeklyDelta {
-  this_week_count: number
-  last_week_count: number
-  /** Percent change vs last week. `null` when last week was zero — UI renders "-". */
+export interface TodayDelta {
+  today_count: number
+  yesterday_count: number
+  /** Percent change vs yesterday. `null` when yesterday's count was zero — UI renders "-". */
   delta_pct: number | null
 }
 
@@ -133,7 +133,7 @@ export interface Stats {
   sentiment_breakdown: SentimentBreakdown
   positive_pct: number
   negative_pct: number
-  weekly_delta: WeeklyDelta
+  today_delta: TodayDelta
   top_themes: ThemeCount[]
   sentiment_trend: SentimentTrendPoint[]
   avg_latency_ms: number | null
