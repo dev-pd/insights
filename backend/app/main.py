@@ -20,6 +20,7 @@ from app.middleware import (
 
 # Import models so SQLAlchemy registers them on Base.metadata before create_all.
 from app.models import feedback as _feedback  # noqa: F401
+from app.models import llm_usage as _llm_usage  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

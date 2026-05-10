@@ -15,3 +15,10 @@ class SkipReason(StrEnum):
     PROFANITY = "profanity"
     EMPTY = "empty"
     LLM_VALIDATION_ERROR = "llm_validation_error"
+
+
+class LlmCallType(StrEnum):
+    """Categories tracked in the llm_usage audit table."""
+
+    EXTRACTION = "extraction"
+    SUMMARY = "summary"
