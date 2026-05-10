@@ -33,16 +33,22 @@ services:
   worker:
     build: ./backend
     env_file: ./backend/.env
-    # --concurrency from CELERY_WORKER_CONCURRENCY env (default 4).
+    # --concurrency from CELERY_WORKER_CONCURRENCY env (default 3 to stay
+    # under Haiku default RPM — see config.py for the math).
     # Time limits are configured on celery_app itself, not the CLI, so they
     # stay one-source-of-truth in app/tasks/celery_app.py.
     # The multi-stage backend Dockerfile drops `uv` from the final image and
     # exposes the venv binaries on PATH, so we call `celery` directly.
+    # NOTE: `$$` escapes the variable from docker-compose-time substitution
+    # so the SHELL inside the container does the expansion — at which point
+    # backend/.env (via env_file) is loaded and CELERY_WORKER_CONCURRENCY
+    # has its real value. The previous `${VAR:-3}` form resolved at compose
+    # time, which only sees the root .env / shell env, NOT env_file.
     command:
       [
         "sh",
         "-c",
-        "celery -A app.tasks worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-4}",
+        "celery -A app.tasks worker --loglevel=info --concurrency=$${CELERY_WORKER_CONCURRENCY:-3}",
       ]
     depends_on:
       postgres:
