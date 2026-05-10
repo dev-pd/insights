@@ -78,6 +78,28 @@ LLM output is validated through Pydantic in `app/llm/schema.py`. Configuration i
 
 Use `Field(..., description="...")` for non-obvious fields. The description shows up in generated OpenAPI docs.
 
+## API router composition
+
+API routers in `app/api/` use sub-routers organized under a v1 router prefix. The router composition lives in `app/api/__init__.py`: `v1_router` gets `prefix="/v1"`, `ops_router` stays unprefixed. `main.py` mounts both.
+
+## Database indexes
+
+All queryable columns have explicit indexes in the SQLAlchemy model. `Feedback` table indexes:
+
+- `status` — filtered constantly (list-by-status, processing-rows scan).
+- `created_at` — sort key for the feedback list.
+- Composite `(status, created_at)` — for the processing-rows-by-time scan that the SSE endpoint uses.
+
+Indexes are declared on the model, not added later via Alembic. Adding them at model definition guarantees they're created on `Base.metadata.create_all()` for the PoC bootstrap.
+
+## Request body size limits
+
+Configure starlette's `Limits` middleware (or equivalent) to cap raw request body at 1MB. Pydantic field-level length caps (e.g. `max_length=5000` on feedback text) are separate; this is the outer wall against malicious payloads — protects the parser before Pydantic ever sees the body.
+
+## CORS configuration
+
+`CORSMiddleware` in `main.py` allows the frontend origin from `Settings.frontend_origin`. Default `http://localhost:3000`. In production, this would be the deployed frontend URL. Never use `allow_origins=["*"]` in production — it disables the cross-origin protection the browser enforces.
+
 ## No magic values
 
 If a value could vary, repeat, or change with environment, it does NOT live inline in code.
