@@ -84,6 +84,11 @@ export const feedback = {
     neutral: "Neutral",
     negative: "Negative",
   },
+  status: {
+    processing: "Processing",
+    failed: "Failed",
+    skipped: "Skipped",
+  },
   toast: {
     submitting: (count: number) =>
       count === 1 ? "Submitting feedback..." : `Submitting ${count} items...`,

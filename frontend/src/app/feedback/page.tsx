@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import useSWR from "swr"
+import useSWR, { useSWRConfig } from "swr"
 
 import { FeedbackTable } from "@/components/feedback/FeedbackTable"
 import { Pagination } from "@/components/feedback/Pagination"
@@ -12,9 +12,13 @@ import {
 } from "@/components/feedback/SentimentFilter"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
+import {
+  useFeedbackStream,
+  type FeedbackUpdateEvent,
+} from "@/hooks/useFeedbackStream"
 import { fetcher } from "@/lib/api/client"
 import { API_ROUTES } from "@/lib/api/routes"
-import type { FeedbackPaginatedResponse } from "@/lib/api/types"
+import type { Feedback, FeedbackPaginatedResponse } from "@/lib/api/types"
 import { UI_DIMENSIONS, UI_TIMINGS } from "@/lib/constants"
 import { common } from "@/locales/en/common"
 import { feedback as feedbackCopy } from "@/locales/en/feedback"
@@ -36,6 +40,25 @@ function buildPaginatedUrl(
   return `${API_ROUTES.feedbackPaginated}?${params.toString()}`
 }
 
+function applyFeedbackUpdate(
+  current: FeedbackPaginatedResponse | undefined,
+  event: FeedbackUpdateEvent,
+): FeedbackPaginatedResponse | undefined {
+  if (!current) return current
+  const updatedItems = current.items.map((item: Feedback) => {
+    if (item.id !== event.feedback_id) return item
+    return {
+      ...item,
+      status: event.status as Feedback["status"],
+      sentiment: (event.payload.sentiment as Feedback["sentiment"]) ?? item.sentiment,
+      themes: event.payload.themes ?? item.themes,
+      action_items: event.payload.action_items ?? item.action_items,
+      language: event.payload.language ?? item.language,
+    }
+  })
+  return { ...current, items: updatedItems }
+}
+
 export default function FeedbackPage() {
   const [page, setPage] = useState(1)
   const [sentimentFilter, setSentimentFilter] =
@@ -47,6 +70,8 @@ export default function FeedbackPage() {
   )
   const trimmedSearch = debouncedSearch.trim()
 
+  const { mutate } = useSWRConfig()
+
   const offset = (page - 1) * PAGE_SIZE
   const url = buildPaginatedUrl(offset, sentimentFilter, trimmedSearch)
 
@@ -54,12 +79,28 @@ export default function FeedbackPage() {
     url,
     fetcher,
     {
-      // Keep showing the previous results during the brief refetch when the
-      // user paginates, changes filter, or types — no skeleton flash between
-      // updates while the debounce/network round-trip resolves.
       keepPreviousData: true,
     },
   )
+
+  // Live update wiring. Predicate-based mutate so a single event patches
+  // every paginated key currently in the SWR cache (different offsets,
+  // filters, search strings). The matching row gets patched in place;
+  // non-matching rows pass through untouched.
+  useFeedbackStream({
+    onFeedbackUpdate: (event) => {
+      mutate<FeedbackPaginatedResponse>(
+        (key) =>
+          typeof key === "string" &&
+          key.startsWith(API_ROUTES.feedbackPaginated),
+        (current) => applyFeedbackUpdate(current, event),
+        { revalidate: false },
+      )
+    },
+    onStatsInvalidate: () => {
+      mutate(API_ROUTES.stats)
+    },
+  })
 
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0
   const hasActiveSearch = trimmedSearch.length > 0

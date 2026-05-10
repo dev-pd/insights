@@ -1,7 +1,11 @@
 "use client"
 
 import { formatDistanceToNowStrict } from "date-fns"
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  Loader2Icon,
+} from "lucide-react"
 import { useState } from "react"
 
 import { Badge } from "@/components/ui/badge"
@@ -118,10 +122,19 @@ function FeedbackRow({ item, isExpanded, onToggle }: FeedbackRowProps) {
           {formatRelativeTime(item.created_at)}
         </td>
         <td className="px-3 py-2">
-          {item.sentiment ? (
+          {item.status === "extracted" && item.sentiment ? (
             <Badge variant={sentimentBadgeVariant[item.sentiment]}>
               {sentimentLabel[item.sentiment]}
             </Badge>
+          ) : item.status === "processing" ? (
+            <Badge variant="outline" className="gap-1.5">
+              <Loader2Icon className="size-3 animate-spin" aria-hidden="true" />
+              {feedbackCopy.status.processing}
+            </Badge>
+          ) : item.status === "failed" ? (
+            <Badge variant="destructive">{feedbackCopy.status.failed}</Badge>
+          ) : item.status === "skipped" ? (
+            <Badge variant="secondary">{feedbackCopy.status.skipped}</Badge>
           ) : (
             <span className="text-xs text-muted-foreground">{item.status}</span>
           )}
