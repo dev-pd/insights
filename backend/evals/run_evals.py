@@ -1,0 +1,330 @@
+"""Eval harness for the active extraction prompt.
+
+Runs each golden case through the live extraction pipeline (Anthropic call
+via `app.llm.extract.extract_insights`) and scores the result against
+hand-labeled expectations.
+
+Usage (from `backend/` directory, with env vars loaded):
+
+    uv run python evals/run_evals.py             # human-readable, no exit code
+    uv run python evals/run_evals.py --json      # JSON to stdout
+    uv run python evals/run_evals.py --check     # exit 1 if metrics regress
+    uv run python evals/run_evals.py --limit 5   # only first 5 cases (fast dev)
+
+Exit codes:
+  0  all metrics ≥ baseline thresholds (or --check not used)
+  1  one or more metrics regressed below threshold
+  2  harness / IO error (bad file, network failure, etc.)
+
+Cost: ~30 input tokens × N goldens + ~1 LLM call/case. At N=15 with Haiku
+that's roughly $0.005 per run. With Opus, ~$0.30. Always run with the
+production model you intend to ship the prompt for — different models
+produce different results and the same prompt can pass on Opus, fail on
+Haiku, or vice versa.
+
+Configuration:
+  ANTHROPIC_API_KEY must be set (read from backend/.env locally, from
+  GitHub Actions secrets in CI).
+  LLM_MODEL controls which model the eval scores against.
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import os
+import sys
+import time
+from collections.abc import Iterable
+from pathlib import Path
+from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_GOLDEN_PATH = REPO_ROOT / "evals" / "golden" / "extraction.jsonl"
+DEFAULT_BASELINE_PATH = REPO_ROOT / "evals" / "baseline.json"
+
+# Ensure `import app...` works whether we're invoked from repo root or backend/.
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from app.core.config import get_settings  # noqa: E402
+from app.exceptions import LLMError  # noqa: E402
+from app.llm.extract import extract_insights  # noqa: E402
+from app.llm.prompts.extraction import ACTIVE_VERSION  # noqa: E402
+
+
+def _load_goldens(path: Path) -> list[dict[str, Any]]:
+    cases: list[dict[str, Any]] = []
+    with path.open() as fh:
+        for line_no, raw in enumerate(fh, start=1):
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            try:
+                cases.append(json.loads(line))
+            except json.JSONDecodeError as error:
+                raise SystemExit(
+                    f"{path}:{line_no}: invalid JSON ({error})"
+                ) from error
+    return cases
+
+
+def _theme_subset_match(
+    expected_subset: Iterable[str], actual_themes: Iterable[str]
+) -> bool:
+    """Each expected term must appear as a substring in at least one actual
+    theme (case-insensitive). Lenient because the LLM paraphrases — "shipping"
+    in the expectation matches "shipping speed" in the actual."""
+    actuals_lower = [theme.lower() for theme in actual_themes]
+    return all(
+        any(expected.lower() in actual for actual in actuals_lower)
+        for expected in expected_subset
+    )
+
+
+async def _evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
+    text: str = case["text"]
+    try:
+        result, metadata = await extract_insights(text)
+    except LLMError as error:
+        return {
+            "id": case["id"],
+            "all_pass": False,
+            "error": {"type": type(error).__name__, "message": str(error)},
+            "checks": {},
+        }
+
+    checks: dict[str, dict[str, Any]] = {}
+
+    # Sentiment — exact match.
+    expected_sentiment = case["expected_sentiment"]
+    checks["sentiment"] = {
+        "expected": expected_sentiment,
+        "actual": result.sentiment,
+        "pass": result.sentiment == expected_sentiment,
+    }
+
+    # Themes subset — every expected term appears as substring in at least one
+    # returned theme. Cases with empty expected_themes_subset skip this check.
+    expected_subset: list[str] = case.get("expected_themes_subset", [])
+    if expected_subset:
+        checks["themes_subset"] = {
+            "expected_subset": expected_subset,
+            "actual_themes": list(result.themes),
+            "pass": _theme_subset_match(expected_subset, result.themes),
+        }
+    else:
+        checks["themes_subset"] = {
+            "skipped": True,
+            "actual_themes": list(result.themes),
+        }
+
+    # Theme count — upper bound (prompt allows 1-5; some cases want a tighter
+    # cap). Hitting it likely means the model is over-extracting.
+    max_count: int = case.get("expected_themes_max_count", 5)
+    checks["themes_count"] = {
+        "max": max_count,
+        "actual": len(result.themes),
+        "pass": len(result.themes) <= max_count,
+    }
+
+    # Action items presence — required by the case or not? We don't try to
+    # match exact action text (too brittle), just presence vs absence.
+    expected_required: bool = case.get("expected_action_items_required", False)
+    actual_has = len(result.action_items) > 0
+    checks["action_items"] = {
+        "expected_required": expected_required,
+        "actual_count": len(result.action_items),
+        "actual_items": list(result.action_items),
+        "pass": expected_required == actual_has,
+    }
+
+    # Language — exact ISO 639-1 match.
+    checks["language"] = {
+        "expected": case["expected_language"],
+        "actual": result.language,
+        "pass": result.language == case["expected_language"],
+    }
+
+    # all_pass: every non-skipped check passed.
+    all_pass = all(check.get("pass", True) for check in checks.values())
+
+    return {
+        "id": case["id"],
+        "all_pass": all_pass,
+        "checks": checks,
+        "model": metadata.get("model"),
+        "latency_ms": metadata.get("latency_ms"),
+        "input_tokens": metadata.get("input_tokens"),
+        "output_tokens": metadata.get("output_tokens"),
+    }
+
+
+def _aggregate(case_results: list[dict[str, Any]]) -> dict[str, Any]:
+    total = len(case_results)
+    if total == 0:
+        return {"overall_pass_rate": 0.0}
+
+    def _rate(numerator: int, denominator: int) -> float:
+        if denominator == 0:
+            return 0.0
+        return round(numerator / denominator, 3)
+
+    sentiment_pass = sum(
+        1 for r in case_results if r["checks"].get("sentiment", {}).get("pass")
+    )
+    theme_count_pass = sum(
+        1 for r in case_results if r["checks"].get("themes_count", {}).get("pass")
+    )
+    action_items_pass = sum(
+        1 for r in case_results if r["checks"].get("action_items", {}).get("pass")
+    )
+    language_pass = sum(
+        1 for r in case_results if r["checks"].get("language", {}).get("pass")
+    )
+    overall_pass = sum(1 for r in case_results if r["all_pass"])
+
+    # Theme subset only over cases that have non-empty expected_themes_subset.
+    subset_cases = [
+        r for r in case_results
+        if not r["checks"].get("themes_subset", {}).get("skipped")
+    ]
+    subset_pass = sum(1 for r in subset_cases if r["checks"]["themes_subset"]["pass"])
+
+    return {
+        "sentiment_accuracy": _rate(sentiment_pass, total),
+        "theme_subset_pass_rate": (
+            _rate(subset_pass, len(subset_cases))
+            if subset_cases
+            else None
+        ),
+        "theme_count_pass_rate": _rate(theme_count_pass, total),
+        "action_items_pass_rate": _rate(action_items_pass, total),
+        "language_accuracy": _rate(language_pass, total),
+        "overall_pass_rate": _rate(overall_pass, total),
+    }
+
+
+async def _run_all(goldens: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    # Sequential — the eval is small (~15 cases) and concurrent calls would
+    # bunch up against Anthropic's RPM cap. ~30s wall clock total at Haiku
+    # latency.
+    results: list[dict[str, Any]] = []
+    for case in goldens:
+        results.append(await _evaluate_case(case))
+    return results
+
+
+def _print_human_readable(report: dict[str, Any]) -> None:
+    print(f"Eval report — {report['prompt_version']} on {report.get('model') or '(no model)'}")
+    print(f"  cases:    {report['n_cases']}")
+    print(f"  elapsed:  {report['elapsed_seconds']}s")
+    print()
+    print("  metrics:")
+    for metric, value in report["metrics"].items():
+        if value is None:
+            print(f"    {metric}: n/a")
+        else:
+            print(f"    {metric}: {value:.1%}" if isinstance(value, float) else f"    {metric}: {value}")
+    failed = [c for c in report["cases"] if not c["all_pass"]]
+    if failed:
+        print()
+        print(f"  {len(failed)} failed case(s):")
+        for c in failed:
+            failing_checks = [
+                k for k, v in c["checks"].items()
+                if isinstance(v, dict) and v.get("pass") is False
+            ]
+            print(f"    - {c['id']}: {', '.join(failing_checks) or '(error)'}")
+            for k in failing_checks:
+                check = c["checks"][k]
+                expected = check.get("expected") or check.get("expected_subset") or check.get("expected_required")
+                actual = check.get("actual") or check.get("actual_themes") or check.get("actual_count")
+                print(f"        {k}: expected={expected!r} actual={actual!r}")
+
+
+def _check_against_baseline(
+    report: dict[str, Any], baseline_path: Path
+) -> int:
+    if not baseline_path.exists():
+        print(
+            f"WARN: baseline missing at {baseline_path}; skipping --check gate",
+            file=sys.stderr,
+        )
+        return 0
+    with baseline_path.open() as fh:
+        baseline = json.load(fh)
+    thresholds: dict[str, float] = baseline.get("thresholds", {})
+    regressions: list[tuple[str, float, float]] = []
+    for metric, threshold in thresholds.items():
+        actual = report["metrics"].get(metric)
+        if actual is None:
+            continue
+        if actual < threshold:
+            regressions.append((metric, actual, threshold))
+    if regressions:
+        print("\n  REGRESSIONS vs baseline thresholds:", file=sys.stderr)
+        for metric, actual, threshold in regressions:
+            print(f"    - {metric}: {actual} < {threshold}", file=sys.stderr)
+        return 1
+    print("\n  all metrics ≥ baseline thresholds", file=sys.stderr)
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--json", action="store_true", help="Emit JSON report to stdout.")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Exit 1 if any metric is below the baseline threshold.",
+    )
+    parser.add_argument("--baseline-path", type=Path, default=DEFAULT_BASELINE_PATH)
+    parser.add_argument("--golden-path", type=Path, default=DEFAULT_GOLDEN_PATH)
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Run only the first N cases. Useful for fast dev iteration.",
+    )
+    args = parser.parse_args()
+
+    if not args.golden_path.exists():
+        print(f"ERROR: golden set not found at {args.golden_path}", file=sys.stderr)
+        return 2
+
+    goldens = _load_goldens(args.golden_path)
+    if args.limit is not None:
+        goldens = goldens[: args.limit]
+    if not goldens:
+        print("ERROR: no golden cases to run", file=sys.stderr)
+        return 2
+
+    settings = get_settings()
+    started = time.monotonic()
+    case_results = asyncio.run(_run_all(goldens))
+    elapsed = time.monotonic() - started
+
+    report = {
+        "prompt_version": ACTIVE_VERSION,
+        "model": settings.llm_model,
+        "n_cases": len(case_results),
+        "elapsed_seconds": round(elapsed, 1),
+        "metrics": _aggregate(case_results),
+        "cases": case_results,
+    }
+
+    if args.json:
+        print(json.dumps(report, indent=2))
+    else:
+        _print_human_readable(report)
+
+    if args.check:
+        return _check_against_baseline(report, args.baseline_path)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
