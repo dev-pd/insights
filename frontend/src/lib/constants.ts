@@ -41,6 +41,9 @@ export const UI_DIMENSIONS = {
   /** XAxis bottom band height — large enough for long rotated labels
    *  like "android 14 compatibility" at -35° without clipping. */
   themeChartLabelHeightPx: 90,
+  /** Width of the frozen YAxis sidecar chart on the theme-frequency view.
+   *  See the dual-chart pattern in ThemeFrequencyChart for why this exists. */
+  themeChartYAxisWidthPx: 44,
   /** Fixed height for the sentiment trend chart container. */
   sentimentTrendHeightPx: 280,
 } as const
