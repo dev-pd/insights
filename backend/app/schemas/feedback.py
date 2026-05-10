@@ -1,5 +1,5 @@
 from datetime import datetime
-from uuid import UUID
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
@@ -7,14 +7,15 @@ from pydantic import BaseModel, ConfigDict
 class FeedbackOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: UUID
+    id: int
     text: str
     status: str
     sentiment: str | None = None
-    themes: list[str] | None = None
-    action_items: list[str] | None = None
+    themes: list[str] = []
+    action_items: list[str] = []
     language: str | None = None
     skip_reason: str | None = None
+    llm_metadata: dict[str, Any] | None = None
     created_at: datetime
     updated_at: datetime | None = None
 
