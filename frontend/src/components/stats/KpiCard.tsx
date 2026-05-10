@@ -1,26 +1,71 @@
 import { Card, CardContent } from "@/components/ui/card"
+import { cn } from "@/lib/utils"
+
+export type KpiTrend = "up" | "down" | "flat"
 
 interface KpiCardProps {
   label: string
   value: string | number
   unit?: string
   hint?: string
+  trend?: KpiTrend | null
   ref?: React.Ref<HTMLDivElement>
 }
 
-export function KpiCard({ label, value, unit, hint, ref }: KpiCardProps) {
+// Unicode arrows (typography codepoints, not emojis) — render at the font's
+// glyph size so they sit on the baseline next to the value.
+const trendIcon: Record<KpiTrend, string> = {
+  up: "↑",
+  down: "↓",
+  flat: "→",
+}
+
+const trendColor: Record<KpiTrend, string> = {
+  up: "text-emerald-600 dark:text-emerald-500",
+  down: "text-rose-600 dark:text-rose-500",
+  flat: "text-muted-foreground",
+}
+
+const trendLabel: Record<KpiTrend, string> = {
+  up: "trending up",
+  down: "trending down",
+  flat: "flat",
+}
+
+export function KpiCard({
+  label,
+  value,
+  unit,
+  hint,
+  trend,
+  ref,
+}: KpiCardProps) {
   return (
     <Card ref={ref}>
-      <CardContent className="pt-6 pb-4">
-        <div className="flex flex-col gap-1">
+      <CardContent className="pt-4 pb-4 px-4">
+        <div className="flex flex-col gap-0.5">
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             {label}
           </span>
-          <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-semibold tabular-nums">{value}</span>
-            {unit && <span className="text-sm text-muted-foreground">{unit}</span>}
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-semibold tabular-nums">{value}</span>
+            {unit && (
+              <span className="text-xs text-muted-foreground">{unit}</span>
+            )}
+            {trend && (
+              <span
+                className={cn("text-xs font-medium", trendColor[trend])}
+                aria-label={trendLabel[trend]}
+              >
+                {trendIcon[trend]}
+              </span>
+            )}
           </div>
-          {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
+          {hint && (
+            <span className="text-[11px] text-muted-foreground truncate">
+              {hint}
+            </span>
+          )}
         </div>
       </CardContent>
     </Card>

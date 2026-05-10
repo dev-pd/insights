@@ -2,12 +2,6 @@ export const stats = {
   kpis: {
     sectionTitle: "Dashboard",
     totalFeedback: "Total feedback",
-    // Old 4-KPI keys are retained for one commit so the existing StatsDashboard
-    // still type-checks; they're removed once the 6-KPI rewrite lands.
-    extracted: "Extracted",
-    skipped: "Skipped",
-    failed: "Failed",
-    // New 6-KPI keys
     positivePct: "Positive",
     negativePct: "Negative",
     thisWeek: "This week",
