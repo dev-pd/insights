@@ -78,17 +78,23 @@ async def call_with_retry(
             )
             await asyncio.sleep(delay)
         except APIError as e:
-            if e.status_code and 500 <= e.status_code < 600:
+            # APIConnectionError (the parent of APITimeoutError) lacks
+            # status_code — it never got a response. Treat it as transient
+            # and retry, same as a 5xx.
+            status_code = getattr(e, "status_code", None)
+            is_transient = status_code is None or (500 <= status_code < 600)
+            if is_transient:
                 last_error = e
                 if attempt == max_attempts - 1:
-                    raise LLMError(f"Anthropic server error: {e}") from e
+                    raise LLMError(f"Anthropic transient error: {e}") from e
                 delay = base_delay * (2**attempt)
                 log.warning(
-                    "llm_5xx_retry",
+                    "llm_transient_retry",
                     extra={
                         "attempt": attempt + 1,
                         "delay": delay,
-                        "status_code": e.status_code,
+                        "status_code": status_code,
+                        "error_type": type(e).__name__,
                     },
                 )
                 await asyncio.sleep(delay)
