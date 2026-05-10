@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     stats_theme_window_days: int = Field(default=7, ge=1, le=365)
     stats_top_themes_limit: int = Field(default=10, ge=1, le=200)
 
+    summary_cache_ttl_seconds: int = Field(default=3600, ge=60, le=86400)
+    summary_lookback_hours: int = Field(default=24, ge=1, le=168)
+    summary_max_feedback_items: int = Field(default=50, ge=1, le=500)
+    summary_min_feedback_items: int = Field(default=3, ge=1, le=50)
+    summary_max_tokens: int = Field(default=300, ge=50, le=2048)
+
     sse_poll_interval_seconds: float = Field(default=1.0, gt=0.0)
     sse_max_stream_duration_minutes: int = Field(default=5, ge=1)
 
