@@ -65,7 +65,8 @@ async def get_redis() -> redis_async.Redis:
         _redis_client = redis_async.from_url(
             settings.redis_url,
             decode_responses=True,
-            max_connections=10,
+            max_connections=settings.redis_max_connections,
+            socket_connect_timeout=settings.redis_socket_connect_timeout_seconds,
         )
     return _redis_client
 
