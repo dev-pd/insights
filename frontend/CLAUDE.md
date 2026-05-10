@@ -28,12 +28,11 @@ frontend/src/
 
 ## Tooling and versions
 
-- Next.js 14 with App Router (not Pages Router)
-- TypeScript 5+ with `strict: true` in `tsconfig.json`
-- React 18+
-- Tailwind CSS via PostCSS
-- shadcn/ui components installed via `npx shadcn@latest add`
-- recharts for charts
+- Next.js 16 with App Router (not Pages Router); Turbopack is the default dev/build engine
+- TypeScript 5.9 with `strict: true` in `tsconfig.json`
+- React 19 — `forwardRef` is no longer required for refs (ref is a regular prop). Existing shadcn components may still use the older pattern; both work.
+- Tailwind v4 (CSS-first config via `@import "tailwindcss"` + `@theme inline`; no `tailwind.config.ts` theme block needed)
+- shadcn/ui components on `@base-ui/react` (shadcn v4 default), installed via `npx shadcn@latest add`
 - SWR for data fetching and cache mutation
 - date-fns for relative timestamps
 - Prettier for TypeScript formatting via the Next.js default config

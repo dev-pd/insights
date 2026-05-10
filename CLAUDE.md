@@ -3,8 +3,8 @@
 A POC for extracting structured insights from customer feedback using LLMs. Scoped as a small-scale demo built with production-grade code patterns.
 
 ## Stack
-- Backend: Python 3.11, FastAPI, SQLAlchemy (async), Pydantic, asyncpg, Celery + Redis
-- Frontend: Next.js 14 (App Router), TypeScript, Tailwind, shadcn/ui, recharts, SWR
+- Backend: Python 3.13, FastAPI, SQLAlchemy (async), Pydantic, asyncpg, Celery + Redis
+- Frontend: Next.js 16 (App Router), React 19, TypeScript 5.9, Tailwind v4, shadcn/ui, SWR
 - Database: Postgres 16 via docker-compose
 - LLM: Anthropic API, `claude-haiku-4-5`
 

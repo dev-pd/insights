@@ -39,7 +39,7 @@ backend/evals/                   # Standalone eval scripts (Phase 5)
 
 ## Python version and tooling
 
-- Python 3.11 minimum. Use modern syntax: `str | None` instead of `Optional[str]`, `list[str]` instead of `List[str]`.
+- Python 3.13 minimum. Use modern syntax: `str | None` instead of `Optional[str]`, `list[str]` instead of `List[str]`.
 - Package management via `uv`. Never `pip install` directly; always `uv add` or edit `pyproject.toml`.
 - Run scripts with `uv run`. Run tests with `uv run pytest`.
 
