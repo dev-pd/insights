@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class FeedbackOut(BaseModel):
@@ -22,6 +22,15 @@ class FeedbackOut(BaseModel):
 
 class FeedbackListResponse(BaseModel):
     items: list[FeedbackOut]
+
+
+class FeedbackPaginatedResponse(BaseModel):
+    items: list[FeedbackOut]
+    total: int = Field(
+        description="Total feedback matching the active filter, not just this page."
+    )
+    offset: int
+    limit: int
 
 
 class ErrorResponse(BaseModel):

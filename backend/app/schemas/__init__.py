@@ -1,4 +1,9 @@
-from app.schemas.feedback import ErrorResponse, FeedbackListResponse, FeedbackOut
+from app.schemas.feedback import (
+    ErrorResponse,
+    FeedbackListResponse,
+    FeedbackOut,
+    FeedbackPaginatedResponse,
+)
 from app.schemas.health import HealthResponse, ReadyResponse
 from app.schemas.stats import (
     SentimentBreakdown,
@@ -11,6 +16,7 @@ __all__ = [
     "ErrorResponse",
     "FeedbackListResponse",
     "FeedbackOut",
+    "FeedbackPaginatedResponse",
     "HealthResponse",
     "ReadyResponse",
     "SentimentBreakdown",

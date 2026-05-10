@@ -1,4 +1,5 @@
 import logging
+from typing import Literal
 
 from app.constants import FeedbackStatus
 from app.exceptions import LLMError
@@ -62,3 +63,13 @@ class FeedbackService:
 
     async def list_recent(self, limit: int) -> list[Feedback]:
         return await self.repo.list_recent(limit=limit)
+
+    async def list_paginated(
+        self,
+        offset: int,
+        limit: int,
+        sentiment: Literal["positive", "neutral", "negative"] | None = None,
+    ) -> tuple[list[Feedback], int]:
+        return await self.repo.list_paginated(
+            offset=offset, limit=limit, sentiment=sentiment
+        )

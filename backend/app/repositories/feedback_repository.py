@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import Float, Integer, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,6 +44,35 @@ class FeedbackRepository:
         stmt = select(Feedback).order_by(desc(Feedback.created_at)).limit(limit)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def list_paginated(
+        self,
+        offset: int,
+        limit: int,
+        sentiment: Literal["positive", "neutral", "negative"] | None = None,
+    ) -> tuple[list[Feedback], int]:
+        """Page of feedback plus total matching count for the pagination UI.
+
+        The total reflects the active filter, not the table size — so "Showing
+        1-20 of 47" stays accurate when a sentiment filter is on.
+        """
+        base_stmt = select(Feedback)
+        count_stmt = select(func.count(Feedback.id))
+
+        if sentiment is not None:
+            base_stmt = base_stmt.where(Feedback.sentiment == sentiment)
+            count_stmt = count_stmt.where(Feedback.sentiment == sentiment)
+
+        count_result = await self.session.execute(count_stmt)
+        total = count_result.scalar_one()
+
+        items_stmt = (
+            base_stmt.order_by(desc(Feedback.created_at)).offset(offset).limit(limit)
+        )
+        items_result = await self.session.execute(items_stmt)
+        items = list(items_result.scalars().all())
+
+        return items, total
 
     async def get(self, feedback_id: int) -> Feedback | None:
         return await self.session.get(Feedback, feedback_id)

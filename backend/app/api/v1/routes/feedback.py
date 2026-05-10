@@ -1,8 +1,10 @@
+from typing import Literal
+
 from fastapi import APIRouter, Query, status
 from pydantic import BaseModel, Field
 
 from app.api.deps import FeedbackServiceDep, SettingsDep
-from app.schemas.feedback import FeedbackOut
+from app.schemas.feedback import FeedbackOut, FeedbackPaginatedResponse
 
 router = APIRouter()
 
@@ -45,6 +47,26 @@ async def list_feedback(
     settings: SettingsDep,
     limit: int | None = Query(default=None, ge=1, le=500),
 ) -> list[FeedbackOut]:
+    """Recent feedback. Used by dashboard widgets and optimistic-update caches."""
     effective_limit = limit if limit is not None else settings.feedback_list_default_limit
     items = await service.list_recent(limit=effective_limit)
     return [FeedbackOut.model_validate(item) for item in items]
+
+
+@router.get("/paginated", response_model=FeedbackPaginatedResponse)
+async def list_feedback_paginated(
+    service: FeedbackServiceDep,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    sentiment: Literal["positive", "neutral", "negative"] | None = Query(default=None),
+) -> FeedbackPaginatedResponse:
+    """Paginated feedback for the /feedback table. Total reflects the active filter."""
+    items, total = await service.list_paginated(
+        offset=offset, limit=limit, sentiment=sentiment
+    )
+    return FeedbackPaginatedResponse(
+        items=[FeedbackOut.model_validate(item) for item in items],
+        total=total,
+        offset=offset,
+        limit=limit,
+    )
