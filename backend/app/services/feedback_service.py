@@ -1,23 +1,28 @@
 import logging
 from typing import Literal
 
-from app.constants import FeedbackStatus, LlmCallType
-from app.exceptions import LLMError
-from app.llm.extract import extract_insights
+from app.constants import FeedbackStatus
 from app.llm.validate import validate_feedback
 from app.models.feedback import Feedback
 from app.repositories.feedback_repository import FeedbackRepository
 from app.repositories.llm_usage_repository import LlmUsageRepository
+from app.tasks.feedback_tasks import extract_feedback_task
 
 log = logging.getLogger(__name__)
 
 
 class FeedbackService:
-    """Orchestrates the validate → extract → persist flow.
+    """Orchestrates the validate → persist → dispatch flow.
 
-    Phase 2: synchronous (POST blocks until LLM returns).
-    Phase 4 will move extraction into a Celery task; this service is the
-    dispatch boundary that won't change shape.
+    Phase 4: feedback rows are persisted with status=PROCESSING and the
+    extraction happens in a Celery worker task. This service returns
+    immediately; the SSE pipeline pushes status updates to the frontend
+    as workers finish.
+
+    The llm_usage_repo dependency is retained even though this service no
+    longer writes usage rows directly — the dispatch boundary keeps the
+    shape stable in case a future code path (sync fallback, eval harness)
+    bypasses Celery and runs inline again.
     """
 
     def __init__(
@@ -29,59 +34,44 @@ class FeedbackService:
         self.llm_usage_repo = llm_usage_repo
 
     async def create_feedback(self, text: str) -> Feedback:
-        # Step 1: pre-LLM validation. Cheap rejections never hit Anthropic.
+        """Validate, persist as PROCESSING, dispatch extraction task. Returns
+        immediately."""
         skip_reason = validate_feedback(text)
         if skip_reason is not None:
-            log.info(
-                "feedback_skipped",
-                extra={"skip_reason": skip_reason.value},
-            )
+            log.info("feedback_skipped", extra={"skip_reason": skip_reason.value})
             return await self.repo.create(
                 text=text,
                 status=FeedbackStatus.SKIPPED,
                 skip_reason=skip_reason,
             )
 
-        # Step 2: LLM extraction. Wrapper handles retries; LLMError on terminal.
-        try:
-            result, metadata = await extract_insights(text)
-        except LLMError as error:
-            log.error(
-                "feedback_extraction_failed",
-                extra={"error_type": type(error).__name__, "error": str(error)},
-            )
-            return await self.repo.create(
-                text=text,
-                status=FeedbackStatus.FAILED,
-                llm_metadata={
-                    "error_type": type(error).__name__,
-                    "error": str(error),
-                },
-            )
-
-        # Step 3: persist with extracted insights.
         feedback = await self.repo.create(
             text=text,
-            status=FeedbackStatus.EXTRACTED,
-            sentiment=result.sentiment,
-            themes=result.themes,
-            action_items=result.action_items,
-            language=result.language,
-            llm_metadata=metadata,
+            status=FeedbackStatus.PROCESSING,
         )
 
-        # Step 4: record LLM usage. Done after persistence so we have feedback.id
-        # for the FK. The shared session means both writes commit together; if
-        # the request later fails, both rows roll back atomically.
-        await self.llm_usage_repo.record(
-            call_type=LlmCallType.EXTRACTION.value,
-            model=metadata.get("model", "unknown"),
-            input_tokens=metadata.get("input_tokens", 0),
-            output_tokens=metadata.get("output_tokens", 0),
-            latency_ms=metadata.get("latency_ms"),
-            prompt_version=metadata.get("prompt_version"),
-            feedback_id=feedback.id,
-        )
+        # Dispatch the Celery task. .delay() returns an AsyncResult immediately;
+        # the worker picks up the task from the broker and runs extraction.
+        # If dispatch itself fails (broker down), mark the row FAILED in-memory
+        # — the request-end session.commit() will persist the flip. Better than
+        # leaving a row in PROCESSING forever.
+        try:
+            extract_feedback_task.delay(feedback.id)
+            log.info(
+                "extraction_task_dispatched",
+                extra={"feedback_id": feedback.id},
+            )
+        except Exception as error:  # noqa: BLE001 — broker outage path
+            log.exception(
+                "extraction_dispatch_failed",
+                extra={"feedback_id": feedback.id, "error": str(error)},
+            )
+            feedback.status = FeedbackStatus.FAILED.value
+            feedback.llm_metadata = {
+                "error_type": type(error).__name__,
+                "error": str(error),
+                "context": "task_dispatch",
+            }
 
         return feedback
 
@@ -100,20 +90,10 @@ class FeedbackService:
         )
 
     async def create_feedback_batch(self, texts: list[str]) -> list[Feedback]:
-        """Process a batch of feedback texts sequentially.
+        """Persist N rows as PROCESSING and dispatch N tasks.
 
-        Sequential — not asyncio.gather — for two reasons:
-          1. Anthropic rate limits (RPM/TPM) bite quickly on parallel batches.
-          2. The shared async session doesn't tolerate concurrent commits well;
-             one rolled-back transaction would poison the others.
-
-        Per-item failures are isolated: any unexpected exception during a single
-        item gets caught, logged, and persisted as a FAILED row so the user sees
-        what happened rather than a silent drop. The whole batch keeps moving.
-
-        Phase 4 graduation: each text dispatches as its own Celery task and the
-        UI reads status updates over SSE. This sync method is the dispatch
-        boundary that won't change shape — only its body.
+        Workers process in parallel up to `celery_worker_concurrency` (default 4).
+        Returns immediately — the frontend listens to SSE for status updates.
         """
         results: list[Feedback] = []
         total = len(texts)
@@ -122,26 +102,22 @@ class FeedbackService:
                 feedback = await self.create_feedback(text)
                 results.append(feedback)
                 log.info(
-                    "batch_item_processed",
-                    extra={"index": index, "total": total, "status": feedback.status},
+                    "batch_item_dispatched",
+                    extra={
+                        "index": index,
+                        "total": total,
+                        "feedback_id": feedback.id,
+                        "status": feedback.status,
+                    },
                 )
             except Exception as error:  # noqa: BLE001 — fault isolation per item
                 log.exception(
-                    "batch_item_failed",
+                    "batch_item_create_failed",
                     extra={
                         "index": index,
                         "total": total,
                         "error_type": type(error).__name__,
                     },
                 )
-                failed_row = await self.repo.create(
-                    text=text,
-                    status=FeedbackStatus.FAILED,
-                    llm_metadata={
-                        "error_type": type(error).__name__,
-                        "error": str(error),
-                        "context": "batch_processing",
-                    },
-                )
-                results.append(failed_row)
+                continue
         return results

@@ -87,10 +87,16 @@ class FeedbackBatchRequest(BaseModel):
 
 class FeedbackBatchResponse(BaseModel):
     items: list[FeedbackOut]
-    total: int = Field(description="Total items processed (success + skipped + failed).")
-    extracted: int
-    skipped: int
-    failed: int
+    total: int = Field(description="Total items submitted (processing + skipped + failed).")
+    processing: int = Field(
+        description="Items queued for async extraction. These return with status=processing "
+        "and reach extracted via the Celery worker pool + SSE updates."
+    )
+    skipped: int = Field(description="Items rejected by pre-LLM validation.")
+    failed: int = Field(
+        description="Items where task dispatch itself failed (broker down). "
+        "Extraction-time failures don't appear here — they reach the user via SSE."
+    )
 
 
 @router.post(
@@ -102,15 +108,16 @@ async def create_feedback_batch(
     payload: FeedbackBatchRequest,
     service: FeedbackServiceDep,
 ) -> FeedbackBatchResponse:
-    """Process 1-50 feedback items in one request.
+    """Submit 1-50 feedback items for async extraction.
 
-    Sequential processing on the backend — see FeedbackService docstring for the
-    rate-limit + session-contention rationale. Per-item failures are isolated.
+    Returns immediately with rows in PROCESSING status. Workers extract in the
+    background; frontend listens to SSE for status transitions. Per-item
+    dispatch failures are isolated.
     """
     results = await service.create_feedback_batch(payload.texts)
 
-    extracted = sum(
-        1 for feedback in results if feedback.status == FeedbackStatus.EXTRACTED.value
+    processing = sum(
+        1 for feedback in results if feedback.status == FeedbackStatus.PROCESSING.value
     )
     skipped = sum(
         1 for feedback in results if feedback.status == FeedbackStatus.SKIPPED.value
@@ -122,7 +129,7 @@ async def create_feedback_batch(
     return FeedbackBatchResponse(
         items=[FeedbackOut.model_validate(feedback) for feedback in results],
         total=len(results),
-        extracted=extracted,
+        processing=processing,
         skipped=skipped,
         failed=failed,
     )

@@ -1,16 +1,21 @@
-"""Shared async-session factory for Celery worker tasks.
+"""Worker-side async session helpers.
 
-Workers run in sync context but the extraction + summary code is async.
-Each task body bridges with `asyncio.run(...)`, and inside the async body
-we need a session factory.
+Celery workers are sync; our extraction code is async. The task body uses
+`asyncio.run(...)` to bridge — that spins up a fresh event loop per
+invocation. SQLAlchemy async engines bind to the loop on first use, so we
+build the engine + session factory INSIDE the async body (same loop) and
+dispose at the end. Caching the engine module-level would tie it to the
+first loop and break subsequent tasks ("Future attached to a different
+loop").
 
-A dedicated factory keeps worker session-pool sizing independent of the
-FastAPI side: workers run with prefork concurrency (typically 4), so the
-pool sizing here is tighter than the request-handling backend's pool.
-
-Module-level singleton so a worker process reuses connections across
-tasks; recreating per task would force pool churn for no benefit.
+The per-task overhead is ~5ms for engine setup vs ~1s for the LLM call —
+negligible. A production-scale worker that wanted per-process pooling
+would use `worker_process_init` + a long-lived loop, but that's
+graduation work.
 """
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -20,21 +25,25 @@ from sqlalchemy.ext.asyncio import (
 
 from app.core.config import get_settings
 
-_engine = None
-_session_factory: async_sessionmaker[AsyncSession] | None = None
 
+@asynccontextmanager
+async def worker_session_scope() -> AsyncIterator[AsyncSession]:
+    """Yield a session bound to a fresh engine for the current event loop.
 
-def get_worker_session_factory() -> async_sessionmaker[AsyncSession]:
-    global _engine, _session_factory
-    if _session_factory is None:
-        settings = get_settings()
-        _engine = create_async_engine(
-            settings.database_url,
-            pool_size=5,
-            max_overflow=2,
-            pool_pre_ping=True,
-        )
-        _session_factory = async_sessionmaker(
-            _engine, class_=AsyncSession, expire_on_commit=False
-        )
-    return _session_factory
+    Always dispose the engine on exit so connections aren't orphaned.
+    """
+    settings = get_settings()
+    engine = create_async_engine(
+        settings.database_url,
+        pool_size=2,
+        max_overflow=1,
+        pool_pre_ping=True,
+    )
+    session_factory = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
+    try:
+        async with session_factory() as session:
+            yield session
+    finally:
+        await engine.dispose()
