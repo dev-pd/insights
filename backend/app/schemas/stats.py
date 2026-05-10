@@ -46,6 +46,10 @@ class StatsOut(BaseModel):
     total_extracted: int = Field(description="Successfully extracted feedback")
     total_skipped: int = Field(description="Skipped during validation")
     total_failed: int = Field(description="Failed during LLM extraction")
+    pending_count: int = Field(
+        default=0,
+        description="Feedback currently being processed by a Celery worker.",
+    )
     sentiment_breakdown: SentimentBreakdown = Field(
         description="Sentiment distribution among extracted feedback",
     )

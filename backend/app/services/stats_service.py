@@ -57,6 +57,7 @@ class StatsService:
         total_extracted = status_counts.get(FeedbackStatus.EXTRACTED.value, 0)
         total_skipped = status_counts.get(FeedbackStatus.SKIPPED.value, 0)
         total_failed = status_counts.get(FeedbackStatus.FAILED.value, 0)
+        pending_count = status_counts.get(FeedbackStatus.PROCESSING.value, 0)
 
         # Sentiment breakdown + percentages of extracted.
         sentiment_counts = await self.repo.sentiment_counts()
@@ -144,6 +145,7 @@ class StatsService:
             total_extracted=total_extracted,
             total_skipped=total_skipped,
             total_failed=total_failed,
+            pending_count=pending_count,
             sentiment_breakdown=sentiment_breakdown,
             positive_pct=positive_pct,
             negative_pct=negative_pct,
