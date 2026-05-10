@@ -16,6 +16,16 @@ How to write TypeScript and React code in this project. Applies to everything un
 
 Package management via `npm`. Run dev server with `npm run dev`.
 
+## Environment variables
+
+Browser-exposed env vars **must** be prefixed `NEXT_PUBLIC_`. Never put secrets in `NEXT_PUBLIC_` vars — they ship to the client bundle and are visible in the browser.
+
+The API base URL is the only browser-exposed var:
+
+- `NEXT_PUBLIC_API_BASE_URL` — defaults to `http://localhost:8000` in development, set to the deployed backend URL in production.
+
+Anything secret (API keys, signing tokens) must be server-only and accessed inside server components or route handlers, never bundled into client code.
+
 ## Server vs client components
 
 Next.js App Router defaults to server components. Any file using `useState`, `useEffect`, hooks, browser APIs, or event handlers must start with `'use client'` at the very top. Default to server components when possible (layout shells, static content). Use `'use client'` only when interactivity is actually needed.
@@ -215,7 +225,7 @@ If a value could vary, repeat, or change with environment, it does NOT live inli
 
 | Type of value | Where it lives |
 |---|---|
-| API route paths | `lib/api/routes.ts` as `API_ROUTES` constant |
+| API route paths | `lib/api/routes.ts` as `API_ROUTES` constant. All versioned paths include the `/v1/` prefix (e.g. `feedback: { list: "/v1/feedback" }`); operational endpoints like `/health` stay unprefixed. |
 | Sentiment colors / labels / chart fills | `lib/sentiment.ts` as `SENTIMENT_STYLES`, `SENTIMENT_COLORS`, `SENTIMENT_LABELS` |
 | UI timings (debounce, polling, animation) | `lib/constants.ts` as `UI_TIMINGS` |
 | API base URL | `process.env.NEXT_PUBLIC_API_BASE_URL` (with sensible default) |
@@ -262,6 +272,8 @@ const data = await response.json()
 ```
 
 The client handles base URL resolution, error mapping, and request ID propagation in one place.
+
+The `apiClient.ts` implementation includes a 30-second timeout via `AbortController`. Without this, a hung backend leaves the UI waiting forever — every fetch call must have an upper bound.
 
 ### All UI data through SWR
 
@@ -431,7 +443,7 @@ Type-only imports use `import type` to make tree-shaking unambiguous.
 
 ### Error boundaries for component trees
 
-Wrap major sections in error boundaries so one component crashing does not blank the whole page. Next.js App Router provides `error.tsx` files for this.
+Wrap major sections in error boundaries so one component crashing does not blank the whole page. Next.js App Router provides `app/error.tsx` (route-level error boundary) and `app/not-found.tsx` (404 page) for this. **Both must exist** — without `error.tsx`, an uncaught error renders the framework default; without `not-found.tsx`, navigating to an unknown path shows a generic page.
 
 ### User-friendly error messages
 
