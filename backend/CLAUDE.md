@@ -43,6 +43,21 @@ backend/evals/                   # Standalone eval scripts (Phase 5)
 - Package management via `uv`. Never `pip install` directly; always `uv add` or edit `pyproject.toml`.
 - Run scripts with `uv run`. Run tests with `uv run pytest`.
 
+### Library versions (May 2026)
+
+All on latest stable per the locked `uv.lock`:
+
+- **FastAPI** 0.136.x
+- **Pydantic** 2.13.x
+- **pydantic-settings** 2.14.x
+- **SQLAlchemy** 2.0.49 (async)
+- **asyncpg** 0.31.x
+- **uvicorn** 0.46.x
+- **Anthropic Python SDK** 0.100.x
+- **Celery** 5.6.x, **redis-py** 7.4.x
+- **pytest** 9.0.x, **pytest-asyncio** 1.3.x
+- **httpx** 0.28.x, **ruff** 0.15.x
+
 ## Naming
 
 | Element | Convention | Example |

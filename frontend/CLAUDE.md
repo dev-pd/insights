@@ -6,24 +6,26 @@ How to write TypeScript and React code in this project. Applies to everything un
 
 ```
 frontend/src/
-├── app/                         # Next.js App Router
+├── app/                         # Next.js 16 App Router
 │   ├── layout.tsx               # Server component, root layout
 │   ├── page.tsx                 # Home page
 │   ├── error.tsx                # Route-level error boundary ('use client')
 │   ├── not-found.tsx            # 404 page
-│   └── globals.css              # Tailwind directives + shadcn CSS variables
+│   └── globals.css              # @import "tailwindcss" + @theme inline
 ├── components/
-│   ├── ui/                      # shadcn primitives (button, card, badge, etc.)
+│   ├── ui/                      # shadcn primitives (uses forwardRef internally for React 18 compat)
 │   ├── shared/                  # Cross-feature: HealthCheck
 │   ├── feedback/                # Phase 2: PasteForm, FeedbackList, FeedbackCard
-│   └── stats/                   # Phase 3: KpiCard, ThemeFrequencyChart, SentimentTrendChart
-├── hooks/                       # Phase 4: useFeedbackStream, useDebouncedValue
-└── lib/
-    ├── api/
-    │   ├── client.ts            # apiClient + fetcher (generic)
-    │   ├── routes.ts            # API_ROUTES constant
-    │   └── types.ts             # TypeScript interfaces matching backend Pydantic
-    └── utils.ts                 # cn() helper from shadcn
+│   └── stats/                   # Phase 3: KpiCard, charts
+├── hooks/                       # Phase 4: useFeedbackStream, useToasts
+├── lib/
+│   ├── api/                     # client.ts, routes.ts, types.ts
+│   └── utils.ts                 # cn() helper from shadcn
+└── locales/
+    └── en/                      # Typed string modules (direct imports — NO barrel file)
+        ├── common.ts            # app, errors, status, actions, loading
+        ├── feedback.ts          # pasteForm, list, card, sentiment
+        └── stats.ts             # kpis, charts
 ```
 
 ## Tooling and versions
@@ -40,6 +42,130 @@ frontend/src/
 Package management via `npm`. Run dev server with `npm run dev`.
 
 Frontend deploys via `next start` as a Node server, not static export. `next.config.js` does not set `output: 'export'`. This preserves the full Next.js feature surface (middleware, server components, server actions, API routes) for future additions like authentication.
+
+## Modern patterns (2026)
+
+This codebase follows current 2026 best practices. Phase 2-4 code MUST follow these rules.
+
+### React 19 idioms
+
+**Use ref as a normal prop, NOT `React.forwardRef`.**
+
+```tsx
+// Good
+interface Props {
+  ref?: React.Ref<HTMLDivElement>
+  children?: React.ReactNode
+}
+function FeedbackCard({ ref, children }: Props) {
+  return <div ref={ref}>{children}</div>
+}
+
+// Bad
+const FeedbackCard = React.forwardRef<HTMLDivElement, Props>((props, ref) => (
+  <div ref={ref}>...</div>
+))
+```
+
+**Exception:** shadcn primitives in `components/ui/` use `forwardRef` for backward compat with React-18 consumers. Don't refactor library code.
+
+**Use the `use()` hook for promises in Server Components when applicable.** We use SWR for client-side data fetching, which has its own promise handling. The `use()` hook is documented here for completeness; current code does not need it.
+
+**Server Components by default.** Add `'use client'` only when needed: state (`useState`/`useReducer`), effects (`useEffect`), event handlers (`onClick`), browser APIs, or third-party client-only libraries.
+
+### Server Actions: deliberately not used
+
+We have a separate FastAPI backend. Mutations go through the REST API, not Server Actions. This is a deliberate architectural choice (separation of concerns, language-appropriate tooling for LLM work) — not lack of awareness.
+
+### Async cookies / headers (Next.js 15+)
+
+If we add auth or session handling later, `cookies()` and `headers()` must be awaited:
+
+```ts
+const cookieStore = await cookies()
+const session = cookieStore.get("session")
+```
+
+Currently no auth, so unused. Documented for graduation work.
+
+### No barrel files in our own code
+
+Per Vercel and Next.js 2026 recommendations (https://vercel.com/blog/how-we-optimized-package-imports-in-next-js), barrel files in YOUR OWN code harm build performance, tree-shaking, and bundle size.
+
+Direct imports from leaf files only:
+
+```ts
+// Good
+import { feedback } from "@/locales/en/feedback"
+import { PasteForm } from "@/components/feedback/PasteForm"
+
+// Bad
+import { feedback, common } from "@/locales"        // no barrel
+import { PasteForm, FeedbackList } from "@/components/feedback"   // no barrel
+```
+
+Each module is imported directly from its source file. **Do not create `index.ts` files in `components/`, `locales/`, `hooks/`, or `lib/`.**
+
+**Exception:** third-party libraries (lucide-react, shadcn/ui) — their barrels are optimized via `experimental.optimizePackageImports` in `next.config.js`.
+
+### Tailwind v4 conventions
+
+- `@import "tailwindcss"` in `globals.css` (NOT three `@tailwind` directives)
+- `@theme inline` directive in CSS for theme customization (NOT JS config object)
+- `@tailwindcss/postcss` plugin (NOT `tailwindcss` + `autoprefixer`)
+- `@utility` for custom utilities (NOT `@layer`)
+- Built-in color palette uses `oklch()` colors (modern color space, wider gamut)
+
+### State management
+
+- **SWR** for server state. Use `mutate()` with optimistic updates for instant UI feedback.
+- **`useState`/`useReducer`** for local component state.
+- **React 19 Context** for cross-component state (no Redux/Zustand at this scale).
+
+### Toasts and side effects
+
+- Use `flushSync` from `react-dom` for synchronous DOM updates when ordering matters (toast queues, focus management). Setting a toast state inside `flushSync` ensures the toast renders before the next paint.
+- `crypto.randomUUID()` for client-side IDs. **Never install a `uuid` library.**
+
+### Performance
+
+- `next.config.js` has `experimental.optimizePackageImports: ['lucide-react']` so only the icons used ship.
+- `next/image` for any images (we have none currently).
+- Server Components where possible (no `'use client'` unless necessary).
+- Bundle analysis: `npx @next/bundle-analyzer` can be added in graduation work.
+
+### TypeScript
+
+- `strict: true` (enforced).
+- No `any` types. Use `unknown` for genuinely unknown data.
+- Type-only imports: `import type { Foo } from "..."` when only types are needed.
+- `as const` for literal type narrowing in constants modules (`locales/en/*.ts` uses this).
+
+### Internationalization (i18n)
+
+User-facing strings live in `src/locales/en/` organized by feature (`common`, `feedback`, `stats`). Components import directly from leaf files:
+
+```tsx
+import { feedback } from "@/locales/en/feedback"
+return <h1>{feedback.pasteForm.title}</h1>
+```
+
+Currently English-only. Adding a locale (e.g., Greek):
+
+1. Create `src/locales/el/` mirroring `src/locales/en/`.
+2. Translate strings (preserve key shape exactly).
+3. Add a thin `src/lib/i18n.ts` that conditionally re-exports based on env / cookie / middleware.
+4. Components migrate from `@/locales/en/*` to `@/lib/i18n`.
+5. Or use Next.js i18n routing for full locale-as-URL-prefix support.
+
+Deliberately did NOT install i18next or react-intl. Runtime locale switching machinery is graduation-tier infrastructure. Constants modules with type-safe access via direct imports are sufficient for English-only with a documented migration path.
+
+### Testing strategy (deliberate)
+
+- **Frontend:** no tests written for the take-home. Visual evaluation by grader is sufficient signal.
+- **Backend Tier 1 only (Phase 5):** `test_validate.py`, `test_extract.py` (mocked Anthropic), `test_feedback_service.py` (fake repo).
+- Repository pattern enables testing services without mocking SQLAlchemy session calls.
+- See `NOTES.md` for full testing rationale.
 
 ## Environment variables
 
