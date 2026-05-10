@@ -4,7 +4,7 @@ export const addFeedback = {
     description:
       "Paste customer feedback to extract sentiment, themes, and action items.",
     bulkUploadNote:
-      "Bulk upload is coming soon. For now, paste feedback one at a time.",
+      "Paste a single feedback item or multiple at once. CSV file upload is on the roadmap.",
   },
 } as const
 

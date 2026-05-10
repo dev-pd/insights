@@ -3,9 +3,22 @@ export const feedback = {
     title: "Paste customer feedback",
     placeholder:
       "Paste any customer feedback here. Reviews, support tickets, survey responses...",
+    placeholderMultiple:
+      "Paste multiple feedback items separated by blank lines.\n\nLike this.\n\nEach paragraph becomes a separate feedback item.",
     submitButton: "Extract insights",
-    submittingButton: "Extracting...",
+    submittingButton: "Submitting...",
     helperText: "We'll extract sentiment, themes, and action items.",
+    helperTextMultiple:
+      "Separate items with a blank line. Or one per line if you prefer.",
+    modeLabel: "Mode",
+    modeSingle: "Single feedback",
+    modeMultiple: "Multiple feedback items",
+    detectedCount: (count: number) => {
+      if (count === 0) return "No feedback detected"
+      if (count === 1) return "1 feedback item detected"
+      return `${count} feedback items detected`
+    },
+    maxBatchHint: (max: number) => `(max ${max} per batch)`,
   },
   list: {
     title: "Recent feedback",
@@ -58,6 +71,20 @@ export const feedback = {
     positive: "Positive",
     neutral: "Neutral",
     negative: "Negative",
+  },
+  toast: {
+    submitting: (count: number) =>
+      count === 1 ? "Submitting feedback..." : `Submitting ${count} items...`,
+    successSingle: "Feedback added",
+    successMultiple: (added: number, extracted: number, skipped: number) => {
+      const parts = [`${added} added`]
+      if (extracted < added) {
+        parts.push(`${extracted} extracted`)
+        if (skipped > 0) parts.push(`${skipped} skipped`)
+      }
+      return parts.join(", ")
+    },
+    error: "Could not submit feedback. Please try again.",
   },
 } as const
 

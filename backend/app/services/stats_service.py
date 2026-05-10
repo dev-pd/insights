@@ -54,7 +54,7 @@ class StatsService:
                 if key:
                     theme_counter[key] += 1
         # Return ALL themes sorted desc by count. No cap — the data IS the
-        # cap at PoC scale (~100 unique themes from a few hundred feedbacks).
+        # cap at PoC scale (~100 unique themes from a few hundred feedback rows).
         # The chart owns display (horizontal scroll); production scale would
         # add pagination here, not a magic number.
         top_themes = [
