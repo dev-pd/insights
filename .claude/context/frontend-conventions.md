@@ -16,15 +16,13 @@ How to write TypeScript and React code in this project. Applies to everything un
 
 Package management via `npm`. Run dev server with `npm run dev`.
 
+Frontend deploys via `next start` as a Node server, not static export. `next.config.js` does not set `output: 'export'`. This preserves the full Next.js feature surface (middleware, server components, server actions, API routes) for future additions like authentication.
+
 ## Environment variables
 
-Browser-exposed env vars **must** be prefixed `NEXT_PUBLIC_`. Never put secrets in `NEXT_PUBLIC_` vars — they ship to the client bundle and are visible in the browser.
+The frontend container has no env file in deployment. `apiClient.ts` uses relative paths (e.g., `/v1/feedback`) which nginx routes to the backend on the internal docker network. `NEXT_PUBLIC_API_BASE_URL` is unset and `apiClient` falls back to an empty-string base.
 
-The API base URL is the only browser-exposed var:
-
-- `NEXT_PUBLIC_API_BASE_URL` — defaults to `http://localhost:8000` in development, set to the deployed backend URL in production.
-
-Anything secret (API keys, signing tokens) must be server-only and accessed inside server components or route handlers, never bundled into client code.
+Server-only env vars (e.g., `AUTH_SECRET` when auth is added later) would live in `frontend/.env.local` without the `NEXT_PUBLIC_` prefix — they stay server-side and never bundle into the browser. Running as a Node server (not static export) is what makes server-only env vars work; static export would not have this distinction.
 
 ## Server vs client components
 
@@ -272,6 +270,8 @@ const data = await response.json()
 ```
 
 The client handles base URL resolution, error mapping, and request ID propagation in one place.
+
+`apiClient` uses relative paths via empty-string base URL: `fetch("/v1/feedback")` becomes a same-origin request which nginx proxies to the backend. No `NEXT_PUBLIC_API_BASE_URL` needed in deployment.
 
 The `apiClient.ts` implementation includes a 30-second timeout via `AbortController`. Without this, a hung backend leaves the UI waiting forever — every fetch call must have an upper bound.
 
