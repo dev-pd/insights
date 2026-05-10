@@ -262,10 +262,44 @@ For our defaults:
 | Model | Recommended `CELERY_WORKER_CONCURRENCY` (default Anthropic tier) |
 |---|:---:|
 | `claude-haiku-4-5` | 1 (TPM-bound; bursts absorbed by retry) |
-| `claude-sonnet-4-6` | 2 (mid-latency, mid-cost) |
-| `claude-opus-4-7` | 4 (slow latency self-throttles) |
+| `claude-sonnet-4-6` | 1-2 (untested empirically; estimate from latency) |
+| `claude-opus-4-7` | **1** (empirical; see update below) |
 
-The Opus row is the most interesting one: Opus's 5-10s per-call latency means concurrency=4 puts you at ~34 RPM and ~43k TPM — strictly under both caps. The slower model "fixes" the rate-limit problem because each worker spends most of its time waiting on the network, not waiting in retry backoff.
+### Empirical update — Opus latency assumption was wrong
+
+The original recommendation said "Opus = concurrency 4, slow latency self-throttles". A 500-item Opus stress test (aborted at item 28 for budget reasons but still informative) found:
+
+| Variable | Original assumption | Empirical measurement |
+|---|---:|---:|
+| Opus avg latency on this prompt | 5-10s ("slow") | **3.4s** (faster than expected) |
+| Prompt size | ~1250 tokens | **~1730 tokens** (system prompt + tools schema is larger than eyeballed) |
+| Calls/min at concurrency=3 | 26 (under 50 RPM cap) | **55** (1.1× over) |
+| TPM at concurrency=3 | 32k (under 50k cap) | **96k** (1.9× over) |
+
+Why no 429s observed in the 30s window: Anthropic's rate limit is a 60-second sliding window. The burn rate was 1.9× the cap but the test didn't run long enough for the window to accumulate. A sustained 500-item drain would have started failing within the first 30-60s.
+
+**Revised Opus math:** at avg latency 3.4s with our ~1730-token prompts:
+
+| Concurrency | calls/min | TPM input | Within caps? |
+|---|---:|---:|---|
+| 1 | 17.6 | 30.5k | yes (comfortable) |
+| 2 | 35.3 | 61k | RPM yes, **TPM no** |
+| 3 | 52.9 | 92k | **both over** |
+| 4 | 70.6 | 122k | **way over** |
+
+**Updated recommendation: `CELERY_WORKER_CONCURRENCY=1` for Opus on default tier.** The "slow Opus self-throttles" framing only holds if average latency stays above ~5s; for our prompt size Opus is closer to 3.4s and the math flips. To drain a large Opus batch cleanly, either drop concurrency to 1 (predictable, ~17 calls/min), upgrade the Anthropic tier, or implement a Redis-backed token-bucket throttle (deferred work).
+
+### Updated cost table (with the real prompt size)
+
+Per call: ~1730 input + ~140 output tokens (was eyeballed at 1250+100).
+
+| Model | $/call | 100 items | 500 items |
+|---|---:|---:|---:|
+| `claude-haiku-4-5` | ~$0.00061 | $0.06 | $0.31 |
+| `claude-sonnet-4-6` | ~$0.0066 | $0.66 | $3.30 |
+| `claude-opus-4-7` | ~$0.036 | $3.60 | **$18** |
+
+The 500-item Opus run was budgeted at ~$13 based on the original 1250-token estimate; the actual cost at 1730 tokens would've been ~$18. The test was aborted at ~$1.05 spent (28 calls completed), which validates "the bigger prompt makes everything 40% more expensive than the back-of-envelope predicted."
 
 ---
 
