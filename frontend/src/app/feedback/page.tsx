@@ -11,6 +11,7 @@ import {
   type SentimentFilterValue,
 } from "@/components/feedback/SentimentFilter"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useDashboardStats } from "@/hooks/useDashboardStats"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import {
   useFeedbackStream,
@@ -18,7 +19,7 @@ import {
 } from "@/hooks/useFeedbackStream"
 import { fetcher } from "@/lib/api/client"
 import { API_ROUTES } from "@/lib/api/routes"
-import type { Feedback, FeedbackPaginatedResponse, Stats } from "@/lib/api/types"
+import type { Feedback, FeedbackPaginatedResponse } from "@/lib/api/types"
 import { UI_DIMENSIONS, UI_TIMINGS } from "@/lib/constants"
 import { common } from "@/locales/en/common"
 import { feedback as feedbackCopy } from "@/locales/en/feedback"
@@ -83,14 +84,11 @@ export default function FeedbackPage() {
     },
   )
 
-  // Drive the SSE subscription off pending_count via a separate SWR fetch
-  // of /v1/stats. Refresh every 5s so the gate flips within 5s of a worker
-  // starting/finishing. SWR dedupes this with the home page's identical
-  // fetch when both tabs are open — only one HTTP poll runs.
-  const { data: stats } = useSWR<Stats>(API_ROUTES.stats, fetcher, {
-    refreshInterval: UI_TIMINGS.statsDashboardRefreshMs,
-    revalidateOnFocus: true,
-  })
+  // Drive the SSE subscription off pending_count. useDashboardStats polls
+  // /v1/stats with an idle-aware refresh interval (5s during a drain, 30s
+  // when idle). Dedupes with the home page's identical subscription if
+  // both tabs are open.
+  const { data: stats } = useDashboardStats()
   const sseEnabled = (stats?.pending_count ?? 0) > 0
 
   // Live update wiring. Predicate-based mutate so a single event patches

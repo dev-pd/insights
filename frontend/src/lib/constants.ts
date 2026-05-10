@@ -17,9 +17,16 @@ export const UI_TIMINGS = {
   /** SWR refresh interval for the feedback list. 0 = no automatic polling
    *  (Phase 2 is synchronous; Phase 4 will replace polling with SSE). */
   feedbackListRefreshMs: 0,
-  /** SWR refresh interval for the stats dashboard. 5s is the sweet spot:
-   *  fast enough to feel live, slow enough not to hammer the DB. */
+  /** SWR refresh interval for the stats dashboard when pending_count > 0
+   *  (active drain). 5s is the sweet spot during work: fast enough to feel
+   *  live, slow enough not to hammer the DB. */
   statsDashboardRefreshMs: 5_000,
+  /** SWR refresh interval for the stats dashboard when pending_count = 0
+   *  (idle). 30s — dashboard still eventually fresh on background changes
+   *  (beat-scheduled summary regen, another tab submitting) but doesn't
+   *  burn ~14 req/min on an idle tab. Matches the conditional-SSE design:
+   *  active state pays for snappy updates, idle state minimizes traffic. */
+  statsDashboardIdleRefreshMs: 30_000,
   /** Debounce delay for the /feedback search input. 300ms is the standard
    *  sweet spot — fast enough to feel responsive, slow enough to coalesce
    *  bursts of keystrokes into one API request. */

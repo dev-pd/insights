@@ -1,27 +1,21 @@
 "use client"
 
-import useSWR, { useSWRConfig } from "swr"
+import { useSWRConfig } from "swr"
 
 import { ProcessingPill } from "@/components/stats/ProcessingPill"
 import { StatsDashboard } from "@/components/stats/StatsDashboard"
 import { StressTestButton } from "@/components/stats/StressTestButton"
+import { useDashboardStats } from "@/hooks/useDashboardStats"
 import { useFeedbackStream } from "@/hooks/useFeedbackStream"
-import { fetcher } from "@/lib/api/client"
 import { API_ROUTES } from "@/lib/api/routes"
-import type { Stats } from "@/lib/api/types"
-import { UI_TIMINGS } from "@/lib/constants"
 import { stats as statsCopy } from "@/locales/en/stats"
 
 export default function Home() {
   const { mutate } = useSWRConfig()
 
-  // Fetch stats just for the pending count — StatsDashboard runs its own
-  // SWR fetch on the same key, so SWR deduplicates and serves both from a
-  // single cache entry.
-  const { data: stats } = useSWR<Stats>(API_ROUTES.stats, fetcher, {
-    refreshInterval: UI_TIMINGS.statsDashboardRefreshMs,
-    revalidateOnFocus: true,
-  })
+  // Stats fetch with idle-aware refresh interval. StatsDashboard subscribes
+  // to the same key, so SWR dedupes — one HTTP poll per cycle serves both.
+  const { data: stats } = useDashboardStats()
 
   const pendingCount = stats?.pending_count ?? 0
 

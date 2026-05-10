@@ -1,12 +1,8 @@
 "use client"
 
-import useSWR from "swr"
-
 import { Skeleton } from "@/components/ui/skeleton"
-import { fetcher } from "@/lib/api/client"
-import { API_ROUTES } from "@/lib/api/routes"
-import type { Stats } from "@/lib/api/types"
-import { UI_FORMATTING, UI_TIMINGS } from "@/lib/constants"
+import { useDashboardStats } from "@/hooks/useDashboardStats"
+import { UI_FORMATTING } from "@/lib/constants"
 import { common } from "@/locales/en/common"
 import { stats as statsCopy } from "@/locales/en/stats"
 
@@ -44,11 +40,7 @@ function trendDirection(deltaPct: number | null): KpiTrend | null {
 }
 
 export function StatsDashboard() {
-  const { data, isLoading, error } = useSWR<Stats>(API_ROUTES.stats, fetcher, {
-    refreshInterval: UI_TIMINGS.statsDashboardRefreshMs,
-    revalidateOnFocus: true,
-    keepPreviousData: true,
-  })
+  const { data, isLoading, error } = useDashboardStats()
 
   if (isLoading && !data) {
     return (
