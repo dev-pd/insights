@@ -5,13 +5,14 @@ import useSWR from "swr"
 import { fetcher } from "@/lib/api/client"
 import { API_ROUTES } from "@/lib/api/routes"
 import type { HealthResponse } from "@/lib/api/types"
+import { UI_TIMINGS } from "@/lib/constants"
 import { common } from "@/locales/en/common"
 
 export function HealthCheck() {
   const { data, error, isLoading } = useSWR<HealthResponse>(
     API_ROUTES.health,
     fetcher,
-    { refreshInterval: 30_000 },
+    { refreshInterval: UI_TIMINGS.healthCheckRefreshMs },
   )
 
   if (isLoading) {

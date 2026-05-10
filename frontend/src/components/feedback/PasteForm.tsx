@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { apiClient } from "@/lib/api/client"
 import { API_ROUTES } from "@/lib/api/routes"
 import type { Feedback, FeedbackCreateRequest } from "@/lib/api/types"
+import { UI_DIMENSIONS } from "@/lib/constants"
 import { common } from "@/locales/en/common"
 import { feedback as feedbackCopy } from "@/locales/en/feedback"
 
@@ -57,7 +58,7 @@ export function PasteForm({ onCreated }: PasteFormProps) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={feedbackCopy.pasteForm.placeholder}
-          rows={6}
+          rows={UI_DIMENSIONS.pasteFormRows}
           disabled={submitting}
         />
         {error && <p className="text-sm text-destructive">{error}</p>}

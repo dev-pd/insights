@@ -1,3 +1,5 @@
+import { UI_TIMINGS } from "@/lib/constants"
+
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
 export class ApiError extends Error {
@@ -14,7 +16,10 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 30_000)
+  const timeout = setTimeout(
+    () => controller.abort(),
+    UI_TIMINGS.apiRequestTimeoutMs,
+  )
 
   try {
     const response = await fetch(`${BASE_URL}${path}`, {

@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { fetcher } from "@/lib/api/client"
 import { API_ROUTES } from "@/lib/api/routes"
 import type { Feedback } from "@/lib/api/types"
+import { UI_TIMINGS } from "@/lib/constants"
 import { feedback as feedbackCopy } from "@/locales/en/feedback"
 
 import { FeedbackCard } from "./FeedbackCard"
@@ -15,7 +16,7 @@ export function FeedbackList() {
     API_ROUTES.feedback,
     fetcher,
     {
-      refreshInterval: 0,
+      refreshInterval: UI_TIMINGS.feedbackListRefreshMs,
       revalidateOnFocus: false,
     },
   )
