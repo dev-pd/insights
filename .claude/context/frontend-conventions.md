@@ -312,6 +312,24 @@ async function handleSubmit(text: string) {
 }
 ```
 
+## Loading states
+
+Every async render path has a skeleton loader, not a spinner. Skeletons:
+
+- Communicate the shape of incoming content.
+- Don't shift layout when real content loads.
+- Use shadcn/ui's `Skeleton` component for consistency.
+
+## Optimistic updates
+
+For the feedback submission flow:
+
+- Show the new row immediately with status `processing`.
+- The backend confirms via SSE.
+- If submission fails, show an error and remove the row.
+
+This makes the UI feel instant. The pattern lives in the submission hook, not scattered across components.
+
 ## Styling
 
 ### Tailwind utilities only
