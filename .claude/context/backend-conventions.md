@@ -78,6 +78,57 @@ LLM output is validated through Pydantic in `app/llm/schema.py`. Configuration i
 
 Use `Field(..., description="...")` for non-obvious fields. The description shows up in generated OpenAPI docs.
 
+## Configuration
+
+All environment variables and tunable values flow through `app/config.py`. Implementation reference (full `Settings` class, `@lru_cache` singleton) lives in the `backend-patterns` skill. Rules:
+
+- One Settings class. No scattered `os.environ.get()` calls in business code.
+- Cached singleton via `@lru_cache`. Avoids re-parsing `.env` on every call.
+- Inject via `Depends(get_settings)` in FastAPI endpoints. Never import the global directly inside business logic.
+- Validation via Pydantic field constraints (`ge=`, `le=`) catches misconfiguration at startup.
+- Sensitive values (API keys, DB URLs) load from env vars. Never commit them.
+
+## Structured logging
+
+Configured in `app/logging_config.py` at app startup. Every log line is JSON, every log line has context. Setup code in the `backend-patterns` skill.
+
+### Usage rules
+
+```python
+# Good - structured fields via extra
+logger.info("feedback_created", extra={
+    "feedback_id": str(feedback.id),
+    "request_id": request_id,
+    "input_length": len(text),
+})
+
+# Bad - f-string interpolation breaks structured logging
+logger.info(f"Created feedback {feedback.id} for request {request_id}")
+```
+
+### What to log
+
+| Event | Level | Required fields |
+|---|---|---|
+| Endpoint entry | INFO | event, path, method, request_id |
+| Service call | INFO | event, service_name, request_id, relevant IDs |
+| LLM call start | INFO | event, prompt_version, input_length, request_id |
+| LLM call complete | INFO | event, prompt_version, latency_ms, output_tokens, request_id |
+| LLM call failed | WARNING or ERROR | event, error_type, attempt, request_id |
+| Feedback skipped | INFO | event, skip_reason, feedback_id, request_id |
+| Caught exception | ERROR | full traceback via logger.exception(), request_id |
+| Unhandled exception | ERROR | full traceback, request_id (added by middleware) |
+
+### Request ID propagation
+
+A middleware adds `request_id` to every request. The ID flows through:
+- Response headers (`X-Request-ID`)
+- All log lines for that request (via context var)
+- Celery task arguments (passed explicitly)
+- LLM client metadata (for tracing)
+
+This means every log line tied to a specific user action carries the same `request_id`. Critical for debugging.
+
 ## API router composition
 
 API routers in `app/api/` use sub-routers organized under a v1 router prefix. The router composition lives in `app/api/__init__.py`: `v1_router` gets `prefix="/v1"`, `ops_router` stays unprefixed. `main.py` mounts both.
@@ -91,6 +142,25 @@ All queryable columns have explicit indexes in the SQLAlchemy model. `Feedback` 
 - Composite `(status, created_at)` — for the processing-rows-by-time scan that the SSE endpoint uses.
 
 Indexes are declared on the model, not added later via Alembic. Adding them at model definition guarantees they're created on `Base.metadata.create_all()` for the PoC bootstrap.
+
+## Database session lifecycle
+
+Async session via FastAPI dependency. Engine setup and `get_session` factory in the `backend-patterns` skill. Rules:
+
+- One session per request, scoped via FastAPI dependency.
+- Auto-commit on successful return, auto-rollback on exception.
+- Sessions never escape the request context. No global sessions.
+- Background tasks (Celery) get their own session via the same factory, scoped to the task.
+
+## Connection pooling
+
+The async engine is created with explicit pool settings (full code in `backend-patterns` skill):
+
+- `pool_size=settings.db_pool_size` (default 10) — steady-state pool.
+- `max_overflow=settings.db_max_overflow` (default 20) — temporary growth under load.
+- `pool_pre_ping=True` — issues a lightweight `SELECT 1` before handing a pooled connection to a request. Prevents stale-connection errors when Postgres drops idle connections (a real failure mode after long-lived processes survive a DB restart or cloud network blip).
+
+Both `pool_size` and `max_overflow` come from Settings so they tune per environment without code changes.
 
 ## Request body size limits
 
@@ -173,6 +243,20 @@ When using `asyncio.gather` for batch work, always set `return_exceptions=True` 
 ### Bounded concurrency
 
 When calling external services (LLM API, third-party HTTP), use `asyncio.Semaphore` to bound parallel calls. The limit lives in `config.py` as a Setting.
+
+### Additional concurrency rules
+
+- Each task isolated: own DB session, own try/except, own logging context.
+- The Semaphore size lives in Settings (`llm_concurrency_limit`), not as a magic number.
+
+## Dependency injection
+
+FastAPI's `Depends` for everything injectable. Standard `Annotated` aliases (`SettingsDep`, `SessionDep`, `RequestIdDep`, `LLMClientDep`) live in `app/deps.py`. Pattern code in `backend-patterns` skill. Rules:
+
+- Services accept dependencies as parameters, never import them at module level.
+- This makes testing trivial: pass mocks instead of patching imports.
+- One source of truth for each dependency provider, in `deps.py`.
+- The `Annotated[Type, Depends(provider)]` pattern is reusable; alias common ones.
 
 ## Repository pattern
 
@@ -309,7 +393,7 @@ raise HTTPException(
 - Structured with context: include `request_id`, `feedback_id`, relevant input characteristics.
 - Use `logger.exception()` to capture full traceback on caught exceptions.
 - Use `logger.warning()` for handled-but-noteworthy issues.
-- See `production-patterns.md` for the full logging contract.
+- See the `Structured logging` section above for the full contract.
 
 ## Custom exceptions
 
@@ -358,6 +442,53 @@ except:
     pass
 ```
 
+### Layered handling
+
+Each layer catches what it can handle, re-raises what it can't:
+
+- **LLM client** catches transient network errors and retries. Raises `LLMError` subclasses on terminal failures.
+- **Service layer** catches `LLMError` and continues by marking feedback as failed. Doesn't catch `DatabaseError` (lets it propagate).
+- **Global exception handler** in `middleware.py` catches everything else and shapes it into the JSON error response.
+
+### Global error response shape
+
+```json
+{
+  "error": "error_type_slug",
+  "detail": { "field": "explanation" },
+  "request_id": "uuid-string"
+}
+```
+
+### Status code mapping
+
+```python
+EXCEPTION_TO_STATUS = {
+    InputValidationError: 400,
+    LLMError: 502,           # bad gateway, since LLM is upstream
+    DatabaseError: 503,      # service unavailable
+    # Anything else: 500
+}
+```
+
+The global exception handler in `middleware.py` also translates `SQLAlchemyError` subclasses into `DatabaseError` before the status mapping applies, so raw ORM exceptions never reach this dict directly.
+
+### Additional rules
+
+- Never bare `except:`. Always specify the exception type.
+- Never `except Exception` without a clear comment explaining why.
+- Always log before re-raising or handling. Never swallow silently.
+- User-facing messages are short and actionable. Internal details go in logs only.
+
+## Graceful shutdown
+
+Two processes need shutdown discipline: the FastAPI app and the Celery worker. Implementation flags and `celery_worker.sh` example in `backend-patterns` skill.
+
+- **FastAPI** handles graceful shutdown automatically via the lifespan protocol. On `SIGTERM`, uvicorn stops accepting new connections, waits for in-flight requests to finish, then exits. No application-level work needed beyond using the lifespan context manager.
+- **Celery worker** uses `--soft-time-limit=120` (raises `SoftTimeLimitExceeded` for cleanup) and `--time-limit=180` (hard kill). On `SIGTERM`, Celery finishes the currently-executing task before exiting (warm shutdown), provided the task completes within its time limit. New tasks in the queue stay queued until another worker picks them up.
+
+The 120/180 split means: a task gets 2 minutes, with 1 minute of warning before the hard kill. For LLM extraction with 30s per-call timeout and up to 3 retries, this is a comfortable ceiling.
+
 ## Functions and modules
 
 ### Function size
@@ -392,13 +523,33 @@ No commented-out code in commits. Either delete it or commit it.
 
 ## Testing
 
-See `production-patterns.md` for testing conventions. Quick rules:
+`backend/tests/` directory with pytest + pytest-asyncio.
+
+### Fixtures (conftest.py)
+
+- Test DB session (in-memory SQLite or per-test transactional rollback)
+- Mocked LLM client returning predetermined responses
+- Sample valid/invalid feedback texts as parameterized fixtures
+
+### What gets tested
+
+| Area | Tests |
+|---|---|
+| Validators | Every rejection rule, boundary conditions (empty, exactly min/max length, unicode, profanity) |
+| LLM extraction | Mocked Anthropic responses, schema validation behavior, retry behavior on transient errors |
+| Service layer | Happy path, per-item failure isolation in batch, status transitions |
+| API endpoints | One integration test per endpoint: happy path + one error path |
+
+### Rules
 
 - Every validator rejection rule has a test.
 - Every service function has a happy path + at least one error path test.
-- LLM calls are always mocked in tests; no real API calls in test runs.
+- LLM calls always mocked. No real API calls in test runs.
 - Use `pytest-asyncio` for async tests.
 - Fixtures live in `conftest.py`.
+- Each test is independent; no shared state across tests.
+- Test names describe the behavior, not the implementation: `test_too_short_input_is_skipped` not `test_validate_returns_false`.
+- Coverage target: meaningful tests on critical paths, not 100% line coverage.
 
 ## Style
 
