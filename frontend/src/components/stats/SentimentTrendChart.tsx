@@ -86,17 +86,21 @@ export function SentimentTrendChart({ points }: SentimentTrendChartProps) {
           <ResponsiveContainer>
             <BarChart
               data={data}
-              margin={{ top: 8, right: 16, bottom: 8, left: 8 }}
+              margin={{ top: 8, right: 0, bottom: 0, left: 0 }}
+              barCategoryGap="15%"
             >
               <XAxis
                 dataKey="label"
                 tick={{ fontSize: 11 }}
                 stroke="var(--muted-foreground)"
+                interval="preserveStartEnd"
+                tickMargin={6}
               />
               <YAxis
                 allowDecimals={false}
                 tick={{ fontSize: 11 }}
                 stroke="var(--muted-foreground)"
+                width={28}
               />
               <Tooltip
                 contentStyle={{

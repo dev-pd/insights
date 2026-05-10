@@ -27,6 +27,14 @@ interface ThemeFrequencyChartProps {
 
 const BAR_COLOR = "var(--primary)"
 
+// Y-axis ticks generated from the configured max + step. Pinning the
+// domain keeps the chart's vertical reference stable as data grows or
+// shrinks; bars don't visually rescale just because counts moved.
+const Y_TICKS = Array.from(
+  { length: UI_DIMENSIONS.themeChartYAxisMax / UI_DIMENSIONS.themeChartYAxisStep + 1 },
+  (_, i) => i * UI_DIMENSIONS.themeChartYAxisStep,
+)
+
 export function ThemeFrequencyChart({ themes }: ThemeFrequencyChartProps) {
   if (themes.length === 0) {
     return (
@@ -46,16 +54,9 @@ export function ThemeFrequencyChart({ themes }: ThemeFrequencyChartProps) {
     )
   }
 
-  // Themes arrive sorted desc; reverse so highest count sits at the top of
-  // the horizontal bar chart (recharts renders top-down by default).
-  const data = [...themes]
-    .reverse()
-    .map((t) => ({ theme: t.theme, count: t.count }))
-
-  const chartHeight = Math.max(
-    UI_DIMENSIONS.themeChartMinHeightPx,
-    themes.length * UI_DIMENSIONS.themeChartRowHeightPx,
-  )
+  // Themes arrive sorted desc by count. Keep that order along the X axis
+  // so the leftmost bar is the most-mentioned theme.
+  const data = themes.map((t) => ({ theme: t.theme, count: t.count }))
 
   return (
     <Card>
@@ -66,25 +67,33 @@ export function ThemeFrequencyChart({ themes }: ThemeFrequencyChartProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div style={{ width: "100%", height: chartHeight }}>
+        <div
+          style={{
+            width: "100%",
+            height: UI_DIMENSIONS.themeChartHeightPx,
+          }}
+        >
           <ResponsiveContainer>
             <BarChart
               data={data}
-              layout="vertical"
-              margin={{ top: 8, right: 24, bottom: 8, left: 8 }}
+              margin={{ top: 8, right: 8, bottom: 56, left: 8 }}
             >
               <XAxis
-                type="number"
-                allowDecimals={false}
-                tick={{ fontSize: 12 }}
+                dataKey="theme"
+                tick={{ fontSize: 11 }}
                 stroke="var(--muted-foreground)"
+                interval={0}
+                angle={-35}
+                textAnchor="end"
+                height={56}
               />
               <YAxis
-                type="category"
-                dataKey="theme"
+                allowDecimals={false}
+                domain={[0, UI_DIMENSIONS.themeChartYAxisMax]}
+                ticks={Y_TICKS}
                 tick={{ fontSize: 12 }}
-                width={120}
                 stroke="var(--muted-foreground)"
+                width={32}
               />
               <Tooltip
                 contentStyle={{
@@ -99,7 +108,7 @@ export function ThemeFrequencyChart({ themes }: ThemeFrequencyChartProps) {
                   statsCopy.charts.themeFrequency.countLabel,
                 ]}
               />
-              <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                 {data.map((_, idx) => (
                   <Cell key={idx} fill={BAR_COLOR} />
                 ))}

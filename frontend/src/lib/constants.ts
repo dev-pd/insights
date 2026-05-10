@@ -25,10 +25,15 @@ export const UI_TIMINGS = {
 export const UI_DIMENSIONS = {
   /** Default visible rows for the paste textarea. */
   pasteFormRows: 6,
-  /** Pixel height per row in the theme-frequency horizontal bar chart. */
-  themeChartRowHeightPx: 36,
-  /** Minimum height for the theme-frequency chart container. */
-  themeChartMinHeightPx: 200,
+  /** Fixed height for the theme-frequency vertical bar chart container.
+   *  Vertical layout means height is constant regardless of theme count;
+   *  width grows. */
+  themeChartHeightPx: 320,
+  /** Y-axis ceiling for the theme-frequency chart. Counts above this clip
+   *  rather than rescale, so the visual reference stays stable as data grows. */
+  themeChartYAxisMax: 50,
+  /** Tick spacing on the theme-frequency chart Y axis (0, 10, 20, …, max). */
+  themeChartYAxisStep: 10,
   /** Fixed height for the sentiment trend chart container. */
   sentimentTrendHeightPx: 280,
 } as const
