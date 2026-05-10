@@ -347,7 +347,7 @@ A good golden set includes:
 |---|---|
 | Sentiment exact-match rate | `correct / total` |
 | Theme F1 | Set comparison after lowercase + strip. No stemming for the PoC. |
-| Action item recall | Whether the expected action concept is captured (judgment call, marked match/no-match) |
+| Action item recall | Exact match on key concept presence, reported as `matched / total`. No fuzzy NLP scoring. |
 | Language detection accuracy | Exact match on ISO code |
 | Schema validation rate | % of calls that pass Pydantic validation on first try |
 
