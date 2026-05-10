@@ -10,6 +10,7 @@ from app.schemas.stats import (
     SentimentTrendPoint,
     StatsOut,
     ThemeCount,
+    WeeklyDelta,
 )
 
 __all__ = [
@@ -23,4 +24,5 @@ __all__ = [
     "SentimentTrendPoint",
     "StatsOut",
     "ThemeCount",
+    "WeeklyDelta",
 ]

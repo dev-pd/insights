@@ -25,6 +25,18 @@ class SentimentTrendPoint(BaseModel):
     negative: int = 0
 
 
+class WeeklyDelta(BaseModel):
+    """Comparison between this week (last 7 days) and the prior 7-day window."""
+
+    this_week_count: int = Field(description="Total feedback in the last 7 days.")
+    last_week_count: int = Field(description="Total feedback in the prior 7 days (7-14 days ago).")
+    delta_pct: float | None = Field(
+        default=None,
+        description="Percent change vs last week. Null when last week was zero "
+        "(division-by-zero — UI shows '-' rather than infinity).",
+    )
+
+
 class StatsOut(BaseModel):
     """Aggregated stats across all feedback for the dashboard."""
 
@@ -37,8 +49,20 @@ class StatsOut(BaseModel):
     sentiment_breakdown: SentimentBreakdown = Field(
         description="Sentiment distribution among extracted feedback",
     )
+    positive_pct: float = Field(
+        default=0.0,
+        description="Percent of extracted feedback labeled positive. 0.0 when none extracted.",
+    )
+    negative_pct: float = Field(
+        default=0.0,
+        description="Percent of extracted feedback labeled negative. 0.0 when none extracted.",
+    )
+    weekly_delta: WeeklyDelta = Field(
+        description="Week-over-week change in submission volume.",
+    )
     top_themes: list[ThemeCount] = Field(
-        description="All themes sorted desc by count. No cap; chart owns display.",
+        description="Top themes within the last `stats_theme_window_days` days, "
+        "capped at `stats_top_themes_limit`.",
     )
     sentiment_trend: list[SentimentTrendPoint] = Field(
         description="Daily sentiment counts (window from Settings.stats_trend_days)",

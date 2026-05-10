@@ -9,7 +9,22 @@ from app.schemas.stats import (
     SentimentTrendPoint,
     StatsOut,
     ThemeCount,
+    WeeklyDelta,
 )
+
+
+def _percentage(part: int, total: int) -> float:
+    if total == 0:
+        return 0.0
+    return round((part / total) * 100, 1)
+
+
+def _delta_pct(this_week: int, last_week: int) -> float | None:
+    """Percent change vs prior week. Returns None when last_week is zero
+    (division-by-zero) so the UI can render '-' rather than infinity or NaN."""
+    if last_week == 0:
+        return None
+    return round(((this_week - last_week) / last_week) * 100, 1)
 
 
 class StatsService:
@@ -27,6 +42,8 @@ class StatsService:
     async def compute_stats(self) -> StatsOut:
         settings = get_settings()
         trend_days = settings.stats_trend_days
+        theme_window_days = settings.stats_theme_window_days
+        top_themes_limit = settings.stats_top_themes_limit
 
         # Status counts.
         status_counts = await self.repo.count_by_status()
@@ -35,36 +52,56 @@ class StatsService:
         total_skipped = status_counts.get(FeedbackStatus.SKIPPED.value, 0)
         total_failed = status_counts.get(FeedbackStatus.FAILED.value, 0)
 
-        # Sentiment breakdown.
+        # Sentiment breakdown + percentages of extracted.
         sentiment_counts = await self.repo.sentiment_counts()
+        positive = sentiment_counts.get("positive", 0)
+        neutral = sentiment_counts.get("neutral", 0)
+        negative = sentiment_counts.get("negative", 0)
         sentiment_breakdown = SentimentBreakdown(
-            positive=sentiment_counts.get("positive", 0),
-            neutral=sentiment_counts.get("neutral", 0),
-            negative=sentiment_counts.get("negative", 0),
+            positive=positive,
+            neutral=neutral,
+            negative=negative,
+        )
+        positive_pct = _percentage(positive, total_extracted)
+        negative_pct = _percentage(negative, total_extracted)
+
+        # Weekly delta — rolling 7-day windows anchored on `now`. Not aligned
+        # to midnight so the live dashboard reflects the most recent submission
+        # immediately (matters for the take-home demo); aligning to midnight
+        # would smooth this out at the cost of staleness.
+        now = datetime.now(timezone.utc)
+        this_week_start = now - timedelta(days=7)
+        last_week_start = now - timedelta(days=14)
+        this_week_count = await self.repo.count_in_window(this_week_start, now)
+        last_week_count = await self.repo.count_in_window(last_week_start, this_week_start)
+        weekly_delta = WeeklyDelta(
+            this_week_count=this_week_count,
+            last_week_count=last_week_count,
+            delta_pct=_delta_pct(this_week_count, last_week_count),
         )
 
         # Themes + sentiment trend share one DB read.
         rows = await self.repo.all_themes_with_sentiment()
 
-        # Top-N themes via Counter.
+        # Top themes — within the configured window only. The dashboard answers
+        # "what's hot this week", not exhaustive history. Limit caps cardinality
+        # so the side-by-side card layout stays readable.
+        theme_window_start = now - timedelta(days=theme_window_days)
         theme_counter: Counter[str] = Counter()
-        for themes, _sentiment, _created_at in rows:
+        for themes, _sentiment, created_at in rows:
+            if created_at is None or created_at < theme_window_start:
+                continue
             for theme in themes:
                 key = theme.lower().strip()
                 if key:
                     theme_counter[key] += 1
-        # Return ALL themes sorted desc by count. No cap — the data IS the
-        # cap at PoC scale (~100 unique themes from a few hundred feedback rows).
-        # The chart owns display (horizontal scroll); production scale would
-        # add pagination here, not a magic number.
         top_themes = [
             ThemeCount(theme=theme, count=count)
-            for theme, count in theme_counter.most_common()
+            for theme, count in theme_counter.most_common(top_themes_limit)
         ]
 
         # Daily sentiment trend over the configured window, ending today (UTC).
         # Initialize every day in the window so the chart shows zeros, not gaps.
-        now = datetime.now(timezone.utc)
         today = now.date()
         start_date = today - timedelta(days=trend_days - 1)
         trend_buckets: dict[str, dict[str, int]] = {}
@@ -99,6 +136,9 @@ class StatsService:
             total_skipped=total_skipped,
             total_failed=total_failed,
             sentiment_breakdown=sentiment_breakdown,
+            positive_pct=positive_pct,
+            negative_pct=negative_pct,
+            weekly_delta=weekly_delta,
             top_themes=top_themes,
             sentiment_trend=sentiment_trend,
             avg_latency_ms=avg_latency_ms,

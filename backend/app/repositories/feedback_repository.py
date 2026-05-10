@@ -77,6 +77,17 @@ class FeedbackRepository:
     async def get(self, feedback_id: int) -> Feedback | None:
         return await self.session.get(Feedback, feedback_id)
 
+    async def count_in_window(self, start: datetime, end: datetime) -> int:
+        """Count feedback created in [start, end). Half-open so back-to-back
+        windows don't double-count the boundary instant."""
+        stmt = (
+            select(func.count(Feedback.id))
+            .where(Feedback.created_at >= start)
+            .where(Feedback.created_at < end)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
+
     # ── Stats aggregation queries ───────────────────────────────────────────
 
     async def count_by_status(self) -> dict[str, int]:
