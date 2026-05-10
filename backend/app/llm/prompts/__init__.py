@@ -1,23 +1,18 @@
-from app.llm.prompts.summary_v1 import SUMMARY_PROMPT, SUMMARY_VERSION
-from app.llm.prompts.v1 import PROMPT as V1_PROMPT
-from app.llm.prompts.v1 import VERSION as V1_VERSION
+"""Prompt registry — organized by family.
 
-# Switching the active prompt is a one-line change here. Keep old version
-# files in the repo indefinitely so traces of past extractions can be
-# reproduced. Same convention applies to the summary prompt family.
-ACTIVE_PROMPT = V1_PROMPT
-ACTIVE_VERSION = V1_VERSION
+Submodules:
+  app.llm.prompts.extraction — per-feedback insight extraction
+  app.llm.prompts.summary    — aggregate dashboard summary
 
-ACTIVE_SUMMARY_PROMPT = SUMMARY_PROMPT
-ACTIVE_SUMMARY_VERSION = SUMMARY_VERSION
+Import directly from the family you need:
 
-__all__ = [
-    "ACTIVE_PROMPT",
-    "ACTIVE_SUMMARY_PROMPT",
-    "ACTIVE_SUMMARY_VERSION",
-    "ACTIVE_VERSION",
-    "SUMMARY_PROMPT",
-    "SUMMARY_VERSION",
-    "V1_PROMPT",
-    "V1_VERSION",
-]
+    from app.llm.prompts.extraction import ACTIVE_PROMPT, ACTIVE_VERSION
+    from app.llm.prompts.summary import (
+        ACTIVE_PROMPT as ACTIVE_SUMMARY_PROMPT,
+        ACTIVE_VERSION as ACTIVE_SUMMARY_VERSION,
+    )
+
+Each family's __init__.py owns the "which version is ACTIVE" decision.
+Each version is its own immutable file — see app.llm.prompts.extraction
+for the rationale (trace reproducibility).
+"""

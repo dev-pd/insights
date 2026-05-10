@@ -2,7 +2,7 @@
 
 Distinct from `extract.py`:
   - Different concern (aggregate analysis, not per-item extraction).
-  - Different versioning (`summary_v1` family, see `prompts/summary_v1.py`).
+  - Different versioning (`summary/v1` family, see `prompts/summary/`).
   - No tool_use forcing — we want plain prose, not a JSON schema.
 
 Reuses the same Anthropic client + retry wrapper as extraction so timeout,
@@ -16,7 +16,10 @@ from typing import Any
 from app.core.config import get_settings
 from app.exceptions import LLMError
 from app.llm.client import call_with_retry, get_client
-from app.llm.prompts import ACTIVE_SUMMARY_PROMPT, ACTIVE_SUMMARY_VERSION
+from app.llm.prompts.summary import (
+    ACTIVE_PROMPT as ACTIVE_SUMMARY_PROMPT,
+    ACTIVE_VERSION as ACTIVE_SUMMARY_VERSION,
+)
 
 log = logging.getLogger(__name__)
 

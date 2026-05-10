@@ -1,4 +1,15 @@
-SUMMARY_PROMPT = """You are an analytics assistant for a customer feedback tool.
+"""Summary prompt v1.1 — qualitative language only.
+
+Bump from v1: drops the "Sentiment skews positive (62%)" example and
+explicitly forbids percentages in the output. The dashboard KPI tiles
+compute their own percentages over a different cohort (all-time
+extracted vs the summary's 24h sample), and the LLM's own percentages
+look wrong next to them.
+
+Immutable. Create a new version file for further changes.
+"""
+
+PROMPT = """You are an analytics assistant for a customer feedback tool.
 
 You will be given recent customer feedback items. Each one already has its sentiment, themes, and action items extracted by an upstream model.
 
@@ -21,4 +32,4 @@ Example output:
 "Sentiment skews negative, with several recurring concerns demanding attention: mobile login issues (8 mentions across negative items), pricing tier confusion (5 mentions), and slow customer support response (3 mentions). The mobile login pattern surfaces in items from the last 12 hours and may warrant immediate investigation."
 """
 
-SUMMARY_VERSION = "summary_v1.1"
+VERSION = "summary/v1.1"

@@ -1,3 +1,14 @@
+"""Extraction prompt v1.1 — adds theme-naming guidance.
+
+Bump from v1: explicit instructions to prefer concise canonical theme
+names ("shipping" not "shipping speed"), reuse the same theme across
+similar concepts, and cap at 1-3 words. Motivated by chart readability —
+the top-themes view fragmented when one underlying topic split into 4
+near-duplicate themes.
+
+Immutable. Create a new version file for further changes.
+"""
+
 PROMPT = """You extract structured insights from customer feedback.
 
 Given a piece of customer feedback, identify:
@@ -18,4 +29,4 @@ Action items should be imperative ("improve X", "fix Y") and specific.
 Be grounded in what the feedback actually says — don't invent.
 """
 
-VERSION = "v1.1"
+VERSION = "extraction/v1.1"
