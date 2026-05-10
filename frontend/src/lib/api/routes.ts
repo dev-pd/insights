@@ -9,4 +9,5 @@ export const API_ROUTES = {
   stats: "/api/v1/stats",
   summary: "/api/v1/summary",
   summaryRefresh: "/api/v1/summary/refresh",
+  events: "/api/v1/events",
 } as const
