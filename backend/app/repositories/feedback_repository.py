@@ -1,6 +1,7 @@
+from datetime import datetime
 from typing import Any
 
-from sqlalchemy import desc, select
+from sqlalchemy import Float, Integer, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import FeedbackStatus, SkipReason
@@ -46,3 +47,87 @@ class FeedbackRepository:
 
     async def get(self, feedback_id: int) -> Feedback | None:
         return await self.session.get(Feedback, feedback_id)
+
+    # ── Stats aggregation queries ───────────────────────────────────────────
+
+    async def count_by_status(self) -> dict[str, int]:
+        """Count of feedback rows grouped by status string."""
+        stmt = select(Feedback.status, func.count(Feedback.id)).group_by(
+            Feedback.status
+        )
+        result = await self.session.execute(stmt)
+        return {row[0]: row[1] for row in result.all()}
+
+    async def count_total(self) -> int:
+        """Total feedback rows across all statuses."""
+        stmt = select(func.count(Feedback.id))
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
+
+    async def sentiment_counts(self) -> dict[str, int]:
+        """Count of extracted feedback grouped by sentiment string."""
+        stmt = (
+            select(Feedback.sentiment, func.count(Feedback.id))
+            .where(Feedback.status == FeedbackStatus.EXTRACTED.value)
+            .where(Feedback.sentiment.isnot(None))
+            .group_by(Feedback.sentiment)
+        )
+        result = await self.session.execute(stmt)
+        return {row[0]: row[1] for row in result.all()}
+
+    async def all_themes_with_sentiment(
+        self,
+    ) -> list[tuple[list[str], str | None, datetime]]:
+        """Return (themes, sentiment, created_at) for all extracted feedback.
+
+        Used for in-memory aggregation of top themes and sentiment-over-time.
+        For PoC scale (a few thousand rows) in-memory aggregation is fine and
+        avoids a denormalized themes table. Production scale would replace
+        with a materialized view; documented in NOTES.md graduation path.
+        """
+        stmt = select(
+            Feedback.themes, Feedback.sentiment, Feedback.created_at
+        ).where(Feedback.status == FeedbackStatus.EXTRACTED.value)
+        result = await self.session.execute(stmt)
+        return [(row[0] or [], row[1], row[2]) for row in result.all()]
+
+    async def avg_latency_ms(self) -> float | None:
+        """Average LLM latency across extracted feedback. None if no rows."""
+        # JSONB key access via [...].astext, then cast to numeric for AVG.
+        # Postgres-specific syntax (asyncpg / SQLAlchemy 2.0).
+        stmt = (
+            select(
+                func.avg(
+                    func.cast(
+                        Feedback.llm_metadata["latency_ms"].astext, Float
+                    )
+                )
+            )
+            .where(Feedback.status == FeedbackStatus.EXTRACTED.value)
+            .where(Feedback.llm_metadata.isnot(None))
+        )
+        result = await self.session.execute(stmt)
+        value = result.scalar_one_or_none()
+        return float(value) if value is not None else None
+
+    async def total_tokens(self) -> tuple[int, int]:
+        """Sum of (input_tokens, output_tokens) across all extractions."""
+        stmt = (
+            select(
+                func.sum(
+                    func.cast(
+                        Feedback.llm_metadata["input_tokens"].astext, Integer
+                    )
+                ),
+                func.sum(
+                    func.cast(
+                        Feedback.llm_metadata["output_tokens"].astext, Integer
+                    )
+                ),
+            )
+            .where(Feedback.status == FeedbackStatus.EXTRACTED.value)
+            .where(Feedback.llm_metadata.isnot(None))
+        )
+        result = await self.session.execute(stmt)
+        row = result.one()
+        return (row[0] or 0, row[1] or 0)
