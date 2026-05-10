@@ -710,3 +710,23 @@ Frontend tests are minimal for this PoC. We test:
 - One smoke test that the page renders without crashing
 
 Visual regression and full integration tests are out of scope for the PoC.
+
+## Gotchas
+
+Frontend-specific things we've hit. Cross-cutting gotchas (nginx restart, `.env` sync) live in the root `CLAUDE.md`.
+
+- **shadcn v4 + Tailwind v4: theme variables are full `oklch(...)` values, not raw HSL components.** Templates and StackOverflow snippets that say `hsl(var(--primary))` produce `hsl(oklch(...))` → invalid CSS, color renders as black. Use `var(--primary)` directly. Same applies to `--muted-foreground`, `--popover`, `--border`, etc.
+
+- **shadcn auto-init rewrites `layout.tsx`.** `npx shadcn@latest init -d` adds a `Geist` font import + `cn(font.variable)` body className. If you re-init shadcn after Phase 1, expect `layout.tsx` to lose your customizations (locale strings, body utility classes). Diff and reconcile.
+
+- **`Geist` from `next/font/google` only works on Next 15+.** On Next 14, that import fails because Geist isn't in the Google Fonts catalog. Either upgrade to Next 16 (where it's built in) or `npm install geist` and `import { GeistSans } from "geist/font/sans"`. We're on Next 16 so the built-in path works.
+
+- **recharts v3 `Tooltip` formatter has strict types.** The runtime signature gives you `(value: ValueType | undefined, name: NameType, …) => ReactNode`. Writing `(value: number) => …` fails TypeScript. Either let TS infer (`(value) => …`) and cast inside, or match the full signature with the recharts `ValueType`/`NameType` re-exports. Same trap for the `Bar` chart's `Cell` `fill` prop and Legend's `payload` shapes.
+
+- **recharts colors must be CSS color strings, not Tailwind utility classes.** `fill="bg-primary"` does nothing. Use `fill="var(--primary)"` for theme-aware fills, or literal hex (`fill="#1D9E75"`) when you want a fixed color regardless of theme. Sentiment colors in `SentimentTrendChart` are deliberately literal hex so positive=green/negative=red doesn't shift on dark mode.
+
+- **`'use client'` is required for any component using SWR or `useState`.** Server components can't run hooks. Putting `useSWR` in a server component yields a build-time error. The `app/page.tsx` page itself is `'use client'` because it uses `mutate()` in a callback; otherwise default to server components.
+
+- **Optimistic SWR mutate uses `revalidate: false` for one cache, `mutate(key)` for another.** In `app/page.tsx`'s `handleCreated`: feedback list gets the new row prepended *without* revalidate (we already have it), but stats gets a plain `mutate(key)` to force a re-fetch (we'd compute it wrong locally). Don't blanket-disable revalidation across both.
+
+- **No barrel files in `locales/`, `components/`, `hooks/`, or `lib/`.** Direct leaf-file imports only. `import { feedback } from "@/locales/en/feedback"`. The Modern Patterns section above explains why; the lint check is `find src -name "index.ts" -not -path "*/node_modules/*"` should return zero matches.

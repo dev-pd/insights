@@ -640,3 +640,23 @@ Use `ruff` for linting and formatting. Configuration in `pyproject.toml`. Standa
 Line length: 100 characters. Longer is fine for strings and URLs that don't break naturally.
 
 No premature optimization. Write the clear version first. Profile before optimizing. Document any non-obvious optimization.
+
+## Gotchas
+
+Backend-specific things we've hit. Cross-cutting gotchas (nginx restart, fresh DB volume, `.env` access) live in the root `CLAUDE.md`.
+
+- **nginx strips `/api/` before forwarding.** `nginx.conf` has `proxy_pass http://backend/;` (trailing slash) which replaces `/api/` with `/` before forwarding. So backend mounts routes at `/v1/...` and `/health` — NOT `/api/v1/...`. Don't add `prefix="/api"` when calling `app.include_router(v1_router)`. Symptom of getting it wrong: 404 on every `/api/v1/*` request.
+
+- **SQLAlchemy `func.cast`: import the type, don't reach for `func.<Type>`.** Correct: `from sqlalchemy import Float, Integer; func.cast(col, Float)`. Wrong: `func.cast(col, func.Float)` → `AttributeError: 'Function' has no attribute 'Float'`. SQLAlchemy `func` is for SQL functions (count, sum, avg, lower, …), not types.
+
+- **JSONB key access is Postgres-specific.** `Feedback.llm_metadata["latency_ms"].astext` (then `func.cast(..., Float)` for aggregates) works on asyncpg/Postgres. SQLite, MySQL, etc. would need `cast(json_extract(...))` or similar. We're Postgres-only by design — if that ever changes, every JSONB query in `feedback_repository.py` needs a rewrite.
+
+- **`Base.metadata.create_all()` only creates missing tables.** It does NOT apply ALTER TABLE for column changes, type changes, or new NOT NULL columns. Phase 1-4 relies on `docker compose down -v` to drop the volume and let create_all rebuild fresh. Production graduation = Alembic migrations.
+
+- **Anthropic SDK retries are off (`max_retries=0`).** Our `app/llm/client.py:get_client()` disables them deliberately; `call_with_retry()` owns the retry loop because we want the structured logs (`llm_timeout_retry`, `llm_rate_limit_retry`, `llm_5xx_retry`) and per-error-class backoff. If you re-init the SDK client, keep `max_retries=0`.
+
+- **`tool_choice={"type": "tool", "name": "..."}` is required.** Without it, Claude can answer conversationally instead of calling our tool, and `extract.py` will raise `LLMSchemaError("No extract_insights tool_use in response")`. The forced tool name must match the tool entry in `tools=[...]` exactly — we use the `TOOL_NAME` constant in `extract.py` for both.
+
+- **Sentiment trend window is anchored on today, walking back N-1 days.** `range(trend_days)` produces `[today - 13d, today]` — 14 buckets ending today inclusive. Easy to off-by-one this; symptom is "I posted feedback right now and it doesn't show in today's bucket."
+
+- **`Field(default_factory=list)` on Pydantic ≠ `Field(default=[])`.** The latter is a shared mutable default. `default_factory=list` produces a fresh list per instance. Used in `ExtractionResult.action_items` and matters for any list/dict default.
