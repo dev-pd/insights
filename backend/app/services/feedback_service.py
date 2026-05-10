@@ -50,11 +50,19 @@ class FeedbackService:
             status=FeedbackStatus.PROCESSING,
         )
 
-        # Dispatch the Celery task. .delay() returns an AsyncResult immediately;
-        # the worker picks up the task from the broker and runs extraction.
-        # If dispatch itself fails (broker down), mark the row FAILED in-memory
-        # — the request-end session.commit() will persist the flip. Better than
-        # leaving a row in PROCESSING forever.
+        # CRITICAL: commit BEFORE dispatching the task. The worker picks up
+        # tasks immediately and queries the DB for the feedback row; if the
+        # request-end commit hasn't run yet, the worker sees `not_found`,
+        # logs it, returns SUCCESS to Celery, and the row stays in
+        # PROCESSING forever. We hit this exact race on a 20-item batch:
+        # tasks for the first ~15 ids landed at the worker before the
+        # request committed → 15 zombie rows.
+        #
+        # The session's request-end commit (in db.get_session) is still
+        # safe — committing here just empties the current transaction;
+        # the dependency's commit becomes a no-op.
+        await self.repo.session.commit()
+
         try:
             extract_feedback_task.delay(feedback.id)
             log.info(
@@ -72,6 +80,10 @@ class FeedbackService:
                 "error": str(error),
                 "context": "task_dispatch",
             }
+            # We just committed, so we need another commit to persist the
+            # FAILED flip. Without this, the row would stay PROCESSING
+            # despite knowing the dispatch failed.
+            await self.repo.session.commit()
 
         return feedback
 
