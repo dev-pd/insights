@@ -63,7 +63,7 @@ insights/
 │   │   ├── middleware.py           # RequestIDMiddleware, GlobalExceptionHandler
 │   │   ├── exceptions.py           # Custom exception hierarchy
 │   │   ├── deps.py                 # FastAPI dependency providers
-│   │   ├── db.py                   # Async engine, session factory, Feedback model
+│   │   ├── db.py                   # Engine, Base, Feedback model, session factory ONLY (no queries)
 │   │   ├── constants.py            # FeedbackStatus, SkipReason StrEnums
 │   │   ├── schemas.py              # Pydantic request/response models
 │   │   ├── api/
@@ -72,10 +72,13 @@ insights/
 │   │   │   ├── stats.py            # GET /stats
 │   │   │   ├── events.py           # GET /events (SSE)
 │   │   │   └── health.py           # GET /health
+│   │   ├── repositories/
+│   │   │   ├── __init__.py
+│   │   │   └── feedback_repository.py # Data access for Feedback entity
 │   │   ├── services/
 │   │   │   ├── __init__.py
-│   │   │   ├── feedback_service.py # Validate -> dispatch -> save orchestration
-│   │   │   └── stats_service.py    # Aggregation queries
+│   │   │   ├── feedback_service.py # Calls repositories, never SQLAlchemy directly
+│   │   │   └── stats_service.py    # Aggregation queries (via repository)
 │   │   ├── llm/
 │   │   │   ├── __init__.py
 │   │   │   ├── client.py           # Anthropic wrapper: retries, logging, timeout
@@ -151,24 +154,29 @@ The backend follows strict layer boundaries. Each layer has a single responsibil
 api/          → thin route handlers, Pydantic validation, status code mapping
   └──→ calls services/
 
-services/     → business logic, orchestrates DB + LLM
-  └──→ calls llm/ and uses db.py models
+services/     → business logic, orchestrates repositories + LLM
+  └──→ calls repositories/ and llm/
+
+repositories/ → data access, hides SQLAlchemy specifics from services
+  └──→ uses db.py models and sessions
 
 llm/          → LLM concerns, isolated from web layer
-              → no knowledge of HTTP or DB schemas
+              → no knowledge of HTTP, DB, or repositories
 
-db.py         → SQLAlchemy models and async session factory
-              → no business logic
+db.py         → SQLAlchemy engine, Base, models, async session factory ONLY
+              → no query functions, no business logic
 ```
 
 ### Boundary rules
 
 These are non-negotiable. They keep the codebase navigable and the LLM module portable.
 
-- `api/` modules **never** import directly from `llm/`. Always go through a service.
-- `services/` modules **never** construct HTTP responses. They return domain types; `api/` shapes the response.
-- `llm/` modules **never** import from `db.py`, `api/`, or `services/`. The LLM module is a pure bounded context.
-- `db.py` exports models and session factory only. No business logic; no complex queries (those live in services).
+- `api/` **never** imports from `llm/` or `repositories/` directly. Always go through a service.
+- `services/` **never** construct HTTP responses (return domain types; `api/` shapes the response).
+- `services/` **never** import SQLAlchemy directly. All data access through a repository.
+- `repositories/` are the only place SQLAlchemy queries live (besides `db.py` for engine setup).
+- `llm/` knows nothing about HTTP, DB, or repositories. Pure bounded context.
+- `db.py` exports engine, Base, models, and session factory. No queries, no business logic.
 
 ### Why these rules
 
@@ -177,6 +185,8 @@ These are non-negotiable. They keep the codebase navigable and the LLM module po
 **Portability.** The `llm/` folder is designed as a self-contained bounded context. If this PoC graduates to the Intryc codebase, the entire `llm/` module lifts as-is, regardless of the host's web framework, DB choice, or layering style. Only `api/` and `services/` need to be rewritten against host conventions.
 
 **Testability.** Each layer can be tested in isolation. `services/` tests use mocked LLM clients and in-memory DBs. `llm/` tests don't need a web server.
+
+**Why repositories.** Services contain business logic — validation, orchestration, error handling. Mixing data access into services means a single function knows about SQLAlchemy session lifecycles, query construction, AND business rules. Pulling data access into repositories gives services a clean, mockable contract: in tests, services can be exercised with an in-memory fake repository instead of mocking `session.execute()` calls. The cost is one extra file per entity; the benefit is tests that read like behavior specifications.
 
 ## Async extraction architecture
 
