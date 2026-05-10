@@ -127,6 +127,40 @@ Each module is imported directly from its source file. **Do not create `index.ts
 - Use `flushSync` from `react-dom` for synchronous DOM updates when ordering matters (toast queues, focus management). Setting a toast state inside `flushSync` ensures the toast renders before the next paint.
 - `crypto.randomUUID()` for client-side IDs. **Never install a `uuid` library.**
 
+#### Toast notifications
+
+Transient user feedback uses the `useToast` hook + `ToastStack` component (mounted once in `app/layout.tsx`).
+
+The hook backs onto module-level singleton state with a subscribe/notify pattern, so any component anywhere can trigger a toast that the single global stack renders. This avoids React Context boilerplate for what's intrinsically global UI.
+
+```tsx
+import { useToast } from "@/hooks/useToast"
+
+const { showToast } = useToast()
+showToast("Feedback added", { variant: "success" })
+showToast("Could not connect", { variant: "error", durationMs: 6000 })
+```
+
+- Variants: `"success"` (emerald), `"error"` (rose), `"info"` (slate, default).
+- Default duration: 4 seconds. Pass `durationMs` to override per-toast.
+- Cap of 5 visible at once — oldest is dropped when a 6th arrives.
+- Manual dismiss via the `×` button, returned from the hook as `dismissToast(id)`.
+
+### Multi-paste in PasteForm
+
+The Add Feedback page supports two modes via a radio toggle:
+- **Single feedback**: whole textarea content = 1 feedback (default)
+- **Multiple feedback items**: split by `splitFeedbackTexts(text)`
+
+The splitter:
+1. Tries blank-line separation first (`\n\s*\n+`) — paragraph-style copy from emails, surveys, Slack threads.
+2. Falls back to single-newline split (`\n+`) when there are no blank lines — spreadsheet column copy.
+3. Treats input with no newlines as one feedback.
+
+The detected count renders live below the textarea in multi mode and turns destructive when `count > MAX_BATCH_SIZE` (50). The submit button disables in that state — backend rejects > 50 with 422 anyway, but stopping the user at the form is friendlier than a round-trip error.
+
+Backend `POST /v1/feedback/batch` accepts `{texts: string[]}` (1-50 items) and processes sequentially. Sequential is deliberate — see backend/CLAUDE.md for the rate-limit + session-contention rationale. For Phase 4, this becomes Celery dispatch (each text → one task) and the UI shifts from "wait for batch result" to "see status updates flow in via SSE."
+
 ### Performance
 
 - `next.config.js` has `experimental.optimizePackageImports: ['lucide-react']` so only the icons used ship.

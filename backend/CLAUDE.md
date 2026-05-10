@@ -220,6 +220,25 @@ This means every log line tied to a specific user action carries the same `reque
 
 API routers in `app/api/` use sub-routers organized under a v1 router prefix. The router composition lives in `app/api/__init__.py`: `v1_router` gets `prefix="/v1"`, `ops_router` stays unprefixed. `main.py` mounts both.
 
+### Batch feedback endpoint
+
+`POST /v1/feedback/batch` accepts `{texts: list[str]}` (1-50 items, validated by `Field(min_length=1, max_length=50)` on the request model) and processes sequentially via `FeedbackService.create_feedback_batch()`. Each text is validated, extracted (or skipped), and persisted. Per-item failures are isolated — any unexpected exception during one item gets caught, logged, and persisted as a FAILED row so the batch keeps moving and the user sees what happened.
+
+Response shape:
+
+```json
+{ "items": [...], "total": N, "extracted": E, "skipped": S, "failed": F }
+```
+
+where `total = extracted + skipped + failed`.
+
+**Why sequential, not `asyncio.gather`:**
+- Anthropic rate limits (RPM/TPM) bite quickly on parallel batches; backoff would dominate latency.
+- Concurrent commits on the shared `AsyncSession` are fragile — one rolled-back transaction can poison the others.
+- Sequential = predictable cost and latency, easy to reason about for the take-home demo.
+
+**Phase 4 graduation path:** the endpoint refactors to dispatch each text to Celery as a separate task and returns the IDs immediately. Status updates flow to the UI via SSE. The service method (`create_feedback_batch`) is the dispatch boundary that won't change shape — only its body.
+
 ## Database indexes
 
 All queryable columns have explicit indexes in the SQLAlchemy model. `Feedback` table indexes:
