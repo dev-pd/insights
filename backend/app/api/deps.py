@@ -7,6 +7,7 @@ from app.core.config import Settings, get_settings
 from app.db import get_session
 from app.repositories.feedback_repository import FeedbackRepository
 from app.services.feedback_service import FeedbackService
+from app.services.stats_service import StatsService
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
@@ -24,6 +25,13 @@ async def get_feedback_service(repo: FeedbackRepoDep) -> FeedbackService:
 
 
 FeedbackServiceDep = Annotated[FeedbackService, Depends(get_feedback_service)]
+
+
+async def get_stats_service(repo: FeedbackRepoDep) -> StatsService:
+    return StatsService(repo)
+
+
+StatsServiceDep = Annotated[StatsService, Depends(get_stats_service)]
 
 
 def get_request_id(request: Request) -> str:
