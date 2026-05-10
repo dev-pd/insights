@@ -54,6 +54,14 @@ export interface FeedbackCreateRequest {
   text: string
 }
 
+export interface FeedbackPaginatedResponse {
+  items: Feedback[]
+  /** Total feedback matching the active filter, not just this page. */
+  total: number
+  offset: number
+  limit: number
+}
+
 export interface ThemeCount {
   theme: string
   count: number
