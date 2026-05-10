@@ -1,0 +1,14 @@
+.git
+.claude
+.gitignore
+*.md
+node_modules
+__pycache__
+.env
+.env.*
+.DS_Store
+backend/.venv
+backend/__pycache__
+frontend/node_modules
+frontend/.next
+frontend/dist
