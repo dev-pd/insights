@@ -57,7 +57,15 @@ interface PasteFormProps {
 
 export function PasteForm({ onCreated }: PasteFormProps) {
   const [text, setText] = useState("")
-  const [mode, setMode] = useState<Mode>("single")
+  // Default to "multiple": the realistic primary use case for this app is
+  // pasting a batch of feedback at once. Single-mode is the special case —
+  // a user with one item just types it in and hits submit; the splitter
+  // returns a single-element array and the dispatch goes through
+  // /v1/feedback/batch with one text. Same outcome, no easy-to-miss mode
+  // toggle. Before this, the default of "single" silently treated any
+  // multi-paragraph paste as one row, which was the source of the
+  // "good work DEV team. nice work GTM team. went in as one feedback" bug.
+  const [mode, setMode] = useState<Mode>("multiple")
   const [submitting, setSubmitting] = useState(false)
   const { showToast } = useToast()
 
