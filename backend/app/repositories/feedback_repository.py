@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from sqlalchemy import Float, Integer, desc, func, select
+from sqlalchemy import Float, Integer, Text, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import FeedbackStatus, SkipReason
@@ -50,11 +50,27 @@ class FeedbackRepository:
         offset: int,
         limit: int,
         sentiment: Literal["positive", "neutral", "negative"] | None = None,
+        search: str | None = None,
     ) -> tuple[list[Feedback], int]:
         """Page of feedback plus total matching count for the pagination UI.
 
-        The total reflects the active filter, not the table size — so "Showing
-        1-20 of 47" stays accurate when a sentiment filter is on.
+        The total reflects the active filters, not the table size — so
+        "Showing 1-20 of 47" stays accurate when a sentiment filter or search
+        is on.
+
+        Search is a case-insensitive substring (ILIKE) match across:
+          - text (the raw feedback)
+          - themes (JSONB array)
+          - action_items (JSONB array)
+
+        ILIKE without a full-text index is fine at PoC scale (hundreds of
+        rows). Production scale moves to Postgres tsvector + GIN, or a
+        dedicated search engine. See NOTES.md for the graduation path.
+
+        For the JSONB columns we cast to Text and ILIKE against the JSON
+        serialization. It catches "any element contains substring" without
+        unnesting the array, which is what the dashboard wants. Stricter
+        per-element matching would use jsonb_array_elements / jsonb_path_exists.
         """
         base_stmt = select(Feedback)
         count_stmt = select(func.count(Feedback.id))
@@ -62,6 +78,16 @@ class FeedbackRepository:
         if sentiment is not None:
             base_stmt = base_stmt.where(Feedback.sentiment == sentiment)
             count_stmt = count_stmt.where(Feedback.sentiment == sentiment)
+
+        if search is not None and search.strip():
+            pattern = f"%{search.strip()}%"
+            search_filter = or_(
+                Feedback.text.ilike(pattern),
+                func.cast(Feedback.themes, Text).ilike(pattern),
+                func.cast(Feedback.action_items, Text).ilike(pattern),
+            )
+            base_stmt = base_stmt.where(search_filter)
+            count_stmt = count_stmt.where(search_filter)
 
         count_result = await self.session.execute(count_stmt)
         total = count_result.scalar_one()

@@ -60,10 +60,15 @@ async def list_feedback_paginated(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
     sentiment: Literal["positive", "neutral", "negative"] | None = Query(default=None),
+    q: str | None = Query(
+        default=None,
+        max_length=200,
+        description="Free-text search across feedback text, themes, and action items.",
+    ),
 ) -> FeedbackPaginatedResponse:
-    """Paginated feedback for the /feedback table. Total reflects the active filter."""
+    """Paginated feedback for the /feedback table. Total reflects the active filters."""
     items, total = await service.list_paginated(
-        offset=offset, limit=limit, sentiment=sentiment
+        offset=offset, limit=limit, sentiment=sentiment, search=q
     )
     return FeedbackPaginatedResponse(
         items=[FeedbackOut.model_validate(item) for item in items],

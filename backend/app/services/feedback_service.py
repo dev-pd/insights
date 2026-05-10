@@ -69,9 +69,10 @@ class FeedbackService:
         offset: int,
         limit: int,
         sentiment: Literal["positive", "neutral", "negative"] | None = None,
+        search: str | None = None,
     ) -> tuple[list[Feedback], int]:
         return await self.repo.list_paginated(
-            offset=offset, limit=limit, sentiment=sentiment
+            offset=offset, limit=limit, sentiment=sentiment, search=search
         )
 
     async def create_feedback_batch(self, texts: list[str]) -> list[Feedback]:
