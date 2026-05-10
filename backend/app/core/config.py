@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     celery_result_expires_seconds: int = Field(default=3600, ge=60)
     celery_beat_summary_cron_minute: int = Field(default=0, ge=0, le=59)
 
+    stress_test_max_count: int = Field(default=200, ge=1, le=1000)
+
     sse_heartbeat_interval_seconds: int = Field(default=30, ge=1, le=300)
     sse_poll_interval_seconds: float = Field(default=1.0, gt=0.0)
     sse_max_stream_duration_minutes: int = Field(default=5, ge=1)
