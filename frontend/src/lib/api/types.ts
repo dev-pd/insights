@@ -53,3 +53,35 @@ export interface Feedback {
 export interface FeedbackCreateRequest {
   text: string
 }
+
+export interface ThemeCount {
+  theme: string
+  count: number
+}
+
+export interface SentimentBreakdown {
+  positive: number
+  neutral: number
+  negative: number
+}
+
+export interface SentimentTrendPoint {
+  /** ISO date string for the time bucket (YYYY-MM-DD). */
+  bucket: string
+  positive: number
+  neutral: number
+  negative: number
+}
+
+export interface Stats {
+  total_feedback: number
+  total_extracted: number
+  total_skipped: number
+  total_failed: number
+  sentiment_breakdown: SentimentBreakdown
+  top_themes: ThemeCount[]
+  sentiment_trend: SentimentTrendPoint[]
+  avg_latency_ms: number | null
+  total_input_tokens: number
+  total_output_tokens: number
+}
