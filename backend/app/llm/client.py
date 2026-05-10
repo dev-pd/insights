@@ -23,7 +23,7 @@ def get_client() -> AsyncAnthropic:
         settings = get_settings()
         _client = AsyncAnthropic(
             api_key=settings.anthropic_api_key.get_secret_value(),
-            timeout=30.0,
+            timeout=float(settings.llm_timeout_seconds),
             max_retries=0,
         )
     return _client
@@ -31,10 +31,14 @@ def get_client() -> AsyncAnthropic:
 
 async def call_with_retry(
     func: Callable[[], Awaitable[T]],
-    max_attempts: int = 3,
-    base_delay: float = 1.0,
+    max_attempts: int | None = None,
+    base_delay: float | None = None,
 ) -> T:
     """Retry wrapper with exponential backoff for transient errors.
+
+    `max_attempts` defaults to `settings.llm_max_retries`; `base_delay` to
+    `settings.llm_retry_base_delay_seconds`. Both are overridable per call
+    so callers (e.g. evals) can tighten or loosen the budget.
 
     Retries on:
     - APITimeoutError (network)
@@ -43,6 +47,12 @@ async def call_with_retry(
 
     Does NOT retry on 4xx errors other than 429 (those are our bug).
     """
+    settings = get_settings()
+    if max_attempts is None:
+        max_attempts = settings.llm_max_retries
+    if base_delay is None:
+        base_delay = settings.llm_retry_base_delay_seconds
+
     last_error: Exception | None = None
     for attempt in range(max_attempts):
         try:

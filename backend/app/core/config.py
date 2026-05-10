@@ -28,14 +28,17 @@ class Settings(BaseSettings):
     redis_url: str
 
     llm_model: str = "claude-haiku-4-5"
-    llm_max_tokens: int = Field(default=200, ge=1, le=4096)
+    llm_max_tokens: int = Field(default=1024, ge=1, le=4096)
     llm_timeout_seconds: int = Field(default=30, ge=1)
     llm_max_retries: int = Field(default=3, ge=0, le=10)
+    llm_retry_base_delay_seconds: float = Field(default=1.0, gt=0.0)
     llm_concurrency_limit: int = Field(default=5, ge=1)
 
     feedback_min_length: int = Field(default=10, ge=1)
     feedback_max_length: int = Field(default=5000, ge=1)
     feedback_min_alpha_ratio: float = Field(default=0.4, ge=0.0, le=1.0)
+    feedback_request_max_length: int = Field(default=10_000, ge=1)
+    feedback_list_default_limit: int = Field(default=50, ge=1, le=500)
 
     sse_poll_interval_seconds: float = Field(default=1.0, gt=0.0)
     sse_max_stream_duration_minutes: int = Field(default=5, ge=1)

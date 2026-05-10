@@ -60,5 +60,5 @@ class FeedbackService:
             llm_metadata=metadata,
         )
 
-    async def list_recent(self, limit: int = 50) -> list[Feedback]:
+    async def list_recent(self, limit: int) -> list[Feedback]:
         return await self.repo.list_recent(limit=limit)

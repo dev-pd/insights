@@ -39,7 +39,7 @@ class FeedbackRepository:
         await self.session.refresh(feedback)
         return feedback
 
-    async def list_recent(self, limit: int = 50) -> list[Feedback]:
+    async def list_recent(self, limit: int) -> list[Feedback]:
         stmt = select(Feedback).order_by(desc(Feedback.created_at)).limit(limit)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
