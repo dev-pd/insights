@@ -14,6 +14,7 @@ export default function Home() {
   const { mutate } = useSWRConfig()
   const { data: stats } = useDashboardStats()
   const pendingCount = stats?.pending_count ?? 0
+  const totalCount = stats?.total_feedback ?? 0
 
   // SSE only while pending > 0 — idle dashboards rely on the SWR poll
   // and don't pin a Redis pubsub slot.
@@ -34,7 +35,7 @@ export default function Home() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 className="text-2xl font-bold">{statsCopy.kpis.sectionTitle}</h1>
         {pendingCount > 0 ? (
-          <ProcessingPill count={pendingCount} />
+          <ProcessingPill count={pendingCount} total={totalCount} />
         ) : (
           <StressTestButton />
         )}

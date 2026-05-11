@@ -48,8 +48,9 @@ export const stats = {
     },
   },
   processing: {
-    pillLabel: (count: number) =>
-      count === 1 ? "1 processing" : `${count} processing`,
+    // Shows pending vs the current cohort size so users see drain progress
+    // (e.g. "5 / 100 processing"). total = total_feedback from /v1/stats.
+    pillLabel: (count: number, total: number) => `${count} / ${total} processing`,
   },
   stressTest: {
     buttonLabel: (count: number) =>
