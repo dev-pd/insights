@@ -69,6 +69,7 @@ Each line:
 
 Optional fields when relevant:
 - `"expected_action_items_forbidden_substrings":["historical","1000"]` — assert specific substrings must NOT appear (use for cases like absurd-framing where the model might echo the input verbatim).
+- `"expected_is_noise":true` — for cases that should trigger the `is_noise` schema flag (impossible timeframes, fiction, gibberish-with-words). When set to `true`, OTHER field expectations are short-circuited (sentiment/themes/actions are downstream-ignored when `is_noise=true`); you still need `expected_language` for the schema. Use sparingly — most cases should have `is_noise=false` (the default) so we catch false positives where the model over-flags real complaints.
 
 Field guidance:
 - `expected_themes_subset`: can be `[]` when any reasonable theme is acceptable. Use a substring anchor only when you can confidently predict what the model will return. **Lenient is better than overspec'd**: `["report"]` beats `["reporting"]` (matches both forms); `["upload"]` beats `["crash"]` if the model is likely to name the feature, not the symptom.

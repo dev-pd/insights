@@ -30,7 +30,7 @@ First run pulls images, builds containers, and initializes the schema via SQLAlc
 
 ## What you'll see
 
-- **`/` dashboard** — 5 KPI tiles (Total feedback / Positive / Neutral / Negative / Today), an AI summary widget, a top-themes chart, and a sentiment-over-time chart. Empty on first run.
+- **`/` dashboard** — 6 KPI tiles (Total feedback / Positive / Neutral / Negative / Today / Total tokens), an AI summary widget, a top-themes chart, and a sentiment-over-time chart. Empty on first run.
 - **`/add`** — paste one feedback at a time or a batch (blank-line- or newline-separated, 1–50 items). The extraction runs asynchronously; rows appear immediately as `processing` and update via SSE as the worker completes them.
 - **`/feedback`** — searchable list of all feedback with their extracted sentiment, themes, and action items.
 

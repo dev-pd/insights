@@ -134,7 +134,7 @@ Open `backend/evals/golden/extraction.jsonl`. Append one JSON object per line:
 
 **`expected_themes_subset`** uses substring matching (case-insensitive). `"shipping"` matches `"shipping speed"`, `"slow shipping"`, etc. **Pick lenient anchors** — a strict exact-match expectation will false-negative when the model paraphrases. Empty list `[]` skips this check (useful for very terse cases where any 1-3 themes are reasonable).
 
-**`expected_themes_max_count`** is the upper bound. Prompt allows up to 5; some cases should yield fewer (e.g., 2 for a single-issue complaint).
+**`expected_themes_max_count`** is the upper bound. Schema cap is 3 (`max_length=3` in `app/llm/schema.py`); set lower (1 or 2) when the case clearly has fewer distinct topics — the assertion catches over-extraction.
 
 **`expected_action_items_required`** is presence/absence — we DO NOT match exact action text (too brittle, paraphrased every time). Set `true` for cases that clearly demand a change ("please fix X", "would love Y") and `false` for pure praise/observation.
 

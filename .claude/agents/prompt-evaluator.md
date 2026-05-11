@@ -70,6 +70,7 @@ Thresholds live in `backend/evals/baseline.json`. The harness's `--check` flag d
 | `theme_count_pass_rate` | 0.95 | % of cases within the per-case `expected_themes_max_count`. |
 | `action_items_pass_rate` | 0.95 | % matching expected presence/absence of action items. |
 | `language_accuracy` | 0.95 | ISO 639-1 language code exact-match rate. |
+| `is_noise_accuracy` | 0.95 | LLM correctly flags absurd inputs via the `is_noise` schema field (v1.7+). |
 | `overall_pass_rate` | 0.92 | % of cases passing ALL applicable checks. |
 
 The active prompt PASSES only if every metric is at or above its threshold.
@@ -89,6 +90,7 @@ Metrics:
   theme_count_pass_rate:  <X.X>%  (≥ <floor>%)
   action_items_pass_rate: <X.X>%  (≥ <floor>%)
   language_accuracy:      <X.X>%  (≥ <floor>%)
+  is_noise_accuracy:      <X.X>%  (≥ <floor>%)
   overall_pass_rate:      <X.X>%  (≥ <floor>%)
 
 Report saved → backend/evals/reports/<filename>
@@ -128,6 +130,8 @@ Stick to patterns the data supports — no speculation.
 - **`action_items_pass_rate` failure with false positives** → action-item criteria too loose. Suggest "only return action items when the feedback names a specific, actionable change."
 - **`action_items_pass_rate` failure with false negatives** → inverse — too conservative. Suggest loosening with a positive example.
 - **`language_accuracy` failure** → rare; usually the model returns the expected language. Check whether the input text has very few content words.
+- **`is_noise_accuracy` false positive** (real complaint flagged as noise) → the noise rule is too broad. Suggest tightening with an explicit "vague-but-real complaints are NOT noise" example.
+- **`is_noise_accuracy` false negative** (nonsense reaches the dashboard) → the noise rule's examples are too narrow. Suggest adding the missed pattern to the "Noise detection" section of the active prompt.
 
 Do NOT suggest sweeping rewrites. Specific failures get specific suggestions, one or two lines each.
 

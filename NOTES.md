@@ -5,13 +5,14 @@
 **1. Scoped memory + on-demand skills, not one giant CLAUDE.md.** The root
 CLAUDE.md points at scoped files rather than dumping. Real conventions
 live in `backend/CLAUDE.md` and `frontend/CLAUDE.md`, which auto-load
-only when Claude reads files in that directory. Two skills
-(`prompt-engineering`, `llm-workflow`) carry the deep patterns and load
-on invoke, not per turn. `@.claude/context/architecture.md` is imported
-into the root for shared system shape. I deleted a third skill
-(`backend-patterns`) mid-project once its content drifted toward generic
-Python/FastAPI patterns Claude can infer from the codebase — a skill
-only earns its slot when the content is genuinely project-specific.
+only when Claude reads files in that directory. The `prompt-engineering`
+skill carries the deep iteration workflow and loads on invoke, not per
+turn. `@.claude/context/architecture.md` is imported into the root for
+shared system shape. I deleted two intermediate skills mid-project
+(`backend-patterns` early, then `llm-workflow` late) once their content
+drifted toward generic patterns or duplicated `backend/CLAUDE.md` —
+a skill only earns its slot when the content is genuinely
+project-specific AND not derivable from the auto-loaded CLAUDE.md.
 
 **2. A full prompt-iteration pipeline: generator → evaluator → human →
 golden set.** Two narrow sub-agents form the loop. `edge-case-generator`
