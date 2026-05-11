@@ -27,14 +27,92 @@ backend/evals/
 
 Only `extraction/` has a golden set today. `summary/` is verified qualitatively via the dashboard widget; adding a summary golden set is listed in NOTES.md as graduation work.
 
-## The iteration loop
+## The human-minimal loop (preferred)
 
-1. **See a failure** OR **proactively widen coverage.** Failure path: real output looks wrong, or a new golden fails on the active prompt — run `explore_edges.py` first to see actual behavior before encoding expectations. Coverage path: invoke the `edge-case-generator` sub-agent to propose new candidates by reading the existing goldens + active prompt and finding gaps. Either way, the next step is the same.
-2. **Add/update a golden** capturing the failure BEFORE editing the prompt. Makes the fix measurable and prevents future regressions.
-3. **Create a new version file** (`extraction/v1_3.py`). DO NOT edit a previous version — they're immutable so production traces stay reproducible. Set `VERSION = "extraction/v1.3"`. Copy the previous prompt, make the targeted change.
-4. **Point ACTIVE** at the new version in `extraction/__init__.py` (two lines: `ACTIVE_PROMPT`, `ACTIVE_VERSION`).
-5. **Rebuild + eval.** `docker compose build backend` (image bakes the prompt), then either invoke the `prompt-evaluator` sub-agent (preferred — it auto-saves the JSON report to `evals/reports/<UTC>-<version>.json` via `--report-path /app/evals/reports/AUTO`) or run the harness directly: `docker compose run --rm -v "$(pwd)/backend/evals:/app/evals" backend python /app/evals/run_evals.py --report-path /app/evals/reports/AUTO`. Persisted reports are the iteration audit trail — committed alongside prompt changes so `git log` shows what each version actually scored.
-6. **Analyze.** Did the targeted metric improve? Anything regress? If improved → commit everything together (see below). If regressed → revert ACTIVE in `__init__.py`, iterate on the new version file in place (it's not committed yet, so still mutable) or scrap and bump.
+Three roles, three terminals: edge-case-generator, prompt-evaluator, and main Claude (the strategist). Files on disk are the only shared state. **The human only types 4-5 supervision prompts per round.**
+
+```
+┌──────────────────┐    writes      ┌──────────────────────────────┐
+│ edge-case-       ├──────────────►│ golden/                       │
+│ generator        │                │   extraction.candidates.jsonl │
+└──────────────────┘                └──────────────────────────────┘
+                                              │
+                                              │ reads
+                                              ▼
+┌──────────────────┐    writes      ┌──────────────────────────────┐
+│ prompt-          ├──────────────►│ reports/                      │
+│ evaluator        │                │   <UTC>-<version>.json        │
+└──────────────────┘                └──────────────────────────────┘
+                                              │
+                                              ▼ reads
+                                       ┌─────────────┐
+                                       │ main Claude │ ←──→ human
+                                       │ (diagnose)  │      (decide)
+                                       └─────────────┘
+```
+
+### What the human types (literally)
+
+**Terminal A (edge-case-generator session):**
+> "Generate adverse candidates for the current prompt. Write to the candidates file."
+
+The agent reads goldens + active prompt + validator + schema, writes 5-7 candidates to `backend/evals/golden/extraction.candidates.jsonl`, emits a summary to stdout. Done in ~30s.
+
+**Terminal C (main Claude session — the diagnostician):**
+> "Edge-case-generator wrote new candidates. Read the file, tell me if any look broken or duplicate."
+
+Main Claude reads the file, evaluates realism / single-failure-mode / unambiguity / coverage delta, flags any candidates to drop or refine. Human approves or edits.
+
+**Terminal B (prompt-evaluator session):**
+> "Edge-case-generator has generated new candidates. Check the candidates file, run the eval, save the report."
+
+Agent runs the harness with `--golden-path /app/evals/golden/extraction.candidates.jsonl --check --report-path /app/evals/reports/AUTO`. Returns a PASS/FAIL summary to stdout AND writes the JSON report to disk. ~10s.
+
+**Terminal C (back to main Claude):**
+> "Prompt-evaluator just wrote a report. Read the latest file in evals/reports/, walk me through the failures."
+
+Main Claude reads the report, categorizes each failure (golden overspec vs prompt gap vs LLM flake), proposes refinements or a v1.X prompt bump. Human decides.
+
+**Terminal C (commit step, still main Claude):**
+> "OK, proceed: [refine these goldens / write v1.X with this rule / both]. Then merge approved candidates into the main goldens, delete the candidates file, rebuild backend+worker, re-run prompt-evaluator on the full suite. If all metrics ≥ baseline, update baseline.json + commit everything together."
+
+Main Claude executes. Round complete.
+
+### When to update what
+
+| Trigger | Update |
+|---|---|
+| Candidates land in goldens | `backend/evals/golden/extraction.jsonl` (append, then delete candidates file) |
+| Prompt rule changes | New `extraction/v<N>.py` file + bump ACTIVE in `__init__.py` (NEVER edit a released version) |
+| Metrics observably improve | `baseline.json` — both `observed_at_baseline` (always) AND `thresholds` (raise the floor; keep 5-8pp buffer for LLM variance) |
+| New edge-case pattern entered the goldens | `frontend/src/locales/en/addFeedback.ts` `edgeCases.cases` list (mirror what graders see in the harness) |
+| Round produces a v1.X | `NOTES.md` section 2 (one-line addition referencing the round, what got hardened) |
+| Anything material changed in the harness shape | `backend/CLAUDE.md` Async-processing-or-LLM-relevant gotcha section, if applicable |
+
+### Per-round commit shape
+
+When a round produces a new prompt version, **one atomic commit** contains all of:
+- The new `extraction/v<N>.py` (immutable from now on)
+- `extraction/__init__.py` ACTIVE bump
+- Refined / new goldens in `extraction.jsonl`
+- Updated `baseline.json` (observed + thresholds)
+- The two latest reports in `evals/reports/` (the before-v<N> and after-v<N> runs)
+- `NOTES.md` section 2 one-line update
+- (If new edge-case patterns entered) `frontend/src/locales/en/addFeedback.ts` updated
+
+Commit message body MUST include the metric deltas in a small table — that's the audit trail.
+
+## The legacy iteration loop (still valid for manual work)
+
+The human-minimal flow above is the preferred path. The manual sequence is:
+
+1. **See a failure** OR proactively widen coverage with `explore_edges.py` for ad-hoc probes.
+2. **Add/update a golden** capturing the failure BEFORE editing the prompt.
+3. **Create a new version file** (`extraction/v<N>.py`). DO NOT edit a previous version.
+4. **Point ACTIVE** at the new version in `extraction/__init__.py`.
+5. **Rebuild backend + worker** (both build from `./backend`; worker has its own image): `docker compose build backend worker`.
+6. **Run prompt-evaluator** or the harness directly: `docker compose run --rm -v "$(pwd)/backend/evals:/app/evals" backend python /app/evals/run_evals.py --check --report-path /app/evals/reports/AUTO`.
+7. **Analyze.** If improved → commit everything together (above). If regressed → revert ACTIVE in `__init__.py`, iterate on the new version file in place, try again.
 
 ## What "commit everything together" means
 

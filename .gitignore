@@ -8,3 +8,8 @@ __pycache__/
 .env.local
 backend/.env
 .DS_Store
+
+# Scratch file written by edge-case-generator each run. Approved candidates
+# get merged into golden/extraction.jsonl and committed; the candidates
+# file itself stays local and gets overwritten next round.
+backend/evals/golden/extraction.candidates.jsonl

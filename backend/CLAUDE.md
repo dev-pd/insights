@@ -76,6 +76,22 @@ Every successful LLM call writes one row to `llm_usage` (`app/models/llm_usage.p
 
 Skipped/failed paths don't record — no successful response → no tokens to capture.
 
+### Prompt iteration: the agent loop
+
+Hardening the extraction prompt happens via a three-role pipeline orchestrated through the filesystem (no agent-to-agent IPC — files are the bus):
+
+```
+edge-case-generator  →  golden/extraction.candidates.jsonl
+prompt-evaluator     →  reports/<UTC>-<version>.json
+main Claude + human  →  diagnose, refine, ship
+```
+
+The full flow (which files get touched when, what the per-round commit looks like) lives in `.claude/skills/prompt-engineering/SKILL.md` § "The human-minimal loop". When touching anything under `app/llm/prompts/` invoke that skill. Key rules:
+
+- **NEVER edit a released prompt version file** (`extraction/v1.py`, `v1_1.py`, etc.). Versions are immutable so production traces from `llm_usage.prompt_version` reproduce against the exact text on disk forever. New behavior = new version file + `__init__.py` ACTIVE bump.
+- **Rebuild BOTH backend AND worker images** when bumping ACTIVE — they have separate compose-built images even though both build from `./backend`. Symptom of forgetting: dashboard shows new version in eval reports but worker still runs old prompt on submitted feedback.
+- **Per-round commits land everything together**: new version file + ACTIVE bump + new/refined goldens + `baseline.json` (`observed_at_baseline` + raised `thresholds`) + the before/after report files + `NOTES.md` section-2 line. Commit message body MUST include metric deltas — that's the audit signal.
+
 ## No magic values
 
 If a value could vary, repeat, or change with environment, it does NOT live inline in code.
