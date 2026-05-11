@@ -24,7 +24,7 @@ Prerequisites: Docker Desktop (or compatible docker + docker compose) running lo
    docker compose up --build
    ```
 
-   Use `--build` after any code or config change — plain `docker compose up` reuses the cached image and runs stale code, which surfaces as `ImportError` / `AttributeError` / schema-mismatch noise that disappears the moment you rebuild.
+   **Why `--build`:** the `backend/` and `frontend/` Dockerfiles `COPY` the source into the image at build time — there's no bind mount, so the running container holds whatever code was on disk **at the last build**. Plain `docker compose up` reuses that cached image; if you've edited any Python or TypeScript file since, the container is running stale code. Symptom: `ImportError` for a module you just added, `AttributeError` for a Settings field that exists in your `config.py` but not in the cached image, or a `400` from an endpoint whose request schema has new fields. `--build` rebuilds the image from current source and the errors vanish.
 
 4. Open http://localhost:8080
 
