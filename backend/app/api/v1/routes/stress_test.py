@@ -1,46 +1,89 @@
 """Dev-grade stress endpoint: dispatches N synthetic feedbacks through the
 standard async pipeline. Used by the dashboard button + stress_test.sh.
-Server-side templates keep the bundle small and the pool consistent across
-call sites. NOT for production — each item burns a real Anthropic call."""
+Pool is drawn from `backend/evals/golden/extraction.jsonl` so every stress
+run exercises the same realistic edge-case mix the prompt is hardened
+against (sarcasm, multi-issue, technical noise, non-English skip path,
+prompt-injection rejection at the validator, etc.). NOT for production —
+each item burns a real Anthropic call."""
 
+import json
+import logging
 import random
+from pathlib import Path
 
 from fastapi import APIRouter, status
 from pydantic import BaseModel, Field
 
 from app.api.deps import FeedbackServiceDep, SettingsDep
 
+log = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
-# Deterministic seed per count → stable sentiment/theme mix between runs.
-_FEEDBACK_TEMPLATES: tuple[str, ...] = (
+# Fallback pool used when goldens aren't on disk (e.g., a non-docker dev
+# run where the evals/ tree isn't copied alongside the code). 10 hand-
+# picked items covering the major sentiment + theme patterns; intentionally
+# smaller and less diverse than the real golden pool — when this fallback
+# fires, you'll see a less varied stress run, which is a signal to fix the
+# deployment (the goldens *should* be available).
+_FALLBACK_POOL: tuple[str, ...] = (
     "Product quality is excellent and the shipping was super fast this week.",
-    "Customer support response time has been disappointing lately. Two days for a reply.",
     "Mobile app crashes on the login screen on Android 14. Restarting does not help.",
-    "Pricing tiers are confusing. The pro plan benefits are not clearly explained.",
     "Loving the new dashboard! Charts are clear and load quickly.",
-    "Bulk export feature is missing critical fields like sentiment and timestamp.",
-    "Onboarding flow had too many steps. Lost interest before finishing setup.",
-    "Performance is solid even with 10k records. Filters and search feel instant.",
-    "Documentation could use more examples for the API integration endpoints.",
-    "Trial expiration warnings were unclear. Account locked without obvious notice.",
-    "Theme support is great but I wish dark mode synced with my OS preference.",
-    "Search returns irrelevant results when querying short strings. Needs tuning.",
-    "Loading spinners feel slow even on small operations. Could use optimistic UI.",
-    "Webhook reliability is excellent. Have not seen a missed delivery in months.",
-    "Billing UI is buried three levels deep in settings. Hard to find when needed.",
-    "Push notifications are landing twice for the same event. Possible duplicate dispatch.",
-    "Two-factor auth setup was painless. QR code scanned and worked first try.",
-    "CSV import fails silently when a row has trailing commas. No error shown.",
-    "Realtime collaboration is buttery smooth. Cursors and selections sync instantly.",
-    "Mobile responsive layout breaks on landscape orientation. Side nav overlaps content.",
-    "Latency improved dramatically since last week. API calls feel snappier overall.",
-    "Email digest is helpful but the unsubscribe link in dark mode is invisible.",
-    "Keyboard shortcuts cheat sheet would help power users move faster through the UI.",
-    "Date picker defaults to today but the user often wants the same range as last week.",
-    "Audio transcription accuracy is impressive even with background noise present.",
+    "Pricing tiers are confusing. The pro plan benefits are not clearly explained.",
+    "Would absolutely love a dark mode!",
+    "Customer support has been unresponsive for over a week.",
+    "The UI is gorgeous but checkout is broken and I can't pay.",
+    "Had a billing issue last month, support fixed it within an hour.",
+    "Realtime collaboration is buttery smooth.",
+    "Just make it better. Everything about this product is frustrating right now.",
 )
+
+# Resolved at import — read goldens once, not per request.
+_GOLDEN_FILE = Path("/app/evals/golden/extraction.jsonl")
+
+
+def _load_pool() -> tuple[str, ...]:
+    if not _GOLDEN_FILE.exists():
+        log.warning(
+            "stress_test_pool_fallback",
+            extra={"reason": "golden_file_missing", "path": str(_GOLDEN_FILE)},
+        )
+        return _FALLBACK_POOL
+
+    texts: list[str] = []
+    try:
+        with _GOLDEN_FILE.open() as fh:
+            for line in fh:
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#"):
+                    continue
+                try:
+                    case = json.loads(stripped)
+                except json.JSONDecodeError:
+                    continue
+                text = case.get("text")
+                if isinstance(text, str) and text:
+                    texts.append(text)
+    except OSError as error:
+        log.warning(
+            "stress_test_pool_fallback",
+            extra={"reason": "golden_file_unreadable", "error": str(error)},
+        )
+        return _FALLBACK_POOL
+
+    if not texts:
+        log.warning(
+            "stress_test_pool_fallback",
+            extra={"reason": "golden_file_empty", "path": str(_GOLDEN_FILE)},
+        )
+        return _FALLBACK_POOL
+
+    return tuple(texts)
+
+
+_STRESS_POOL: tuple[str, ...] = _load_pool()
 
 
 class StressTestRequest(BaseModel):
@@ -54,9 +97,11 @@ class StressTestResponse(BaseModel):
 
 
 def _generate_texts(count: int) -> list[str]:
+    # Deterministic seed per count → stable mix between runs at the same N,
+    # useful for reproducible debugging while still rotating across the pool.
     rng = random.Random(0xC0FFEE + count)
     return [
-        f"[stress test item {index + 1:03d}/{count:03d}] {rng.choice(_FEEDBACK_TEMPLATES)}"
+        f"[stress {index + 1:03d}/{count:03d}] {rng.choice(_STRESS_POOL)}"
         for index in range(count)
     ]
 
