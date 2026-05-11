@@ -137,11 +137,12 @@ export function SummaryWidget() {
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {hasError ? (
-          <p className="text-sm text-destructive min-h-[110px]">{statsCopy.summary.error}</p>
+          <p className="text-sm text-destructive min-h-[88px]">{statsCopy.summary.error}</p>
         ) : (
-          // Fixed footprint matches the prompt's 380-500 char target
-          // (summary/v1.2). 5-line clamp keeps the card tight.
-          <p className="text-sm leading-relaxed text-foreground line-clamp-5 min-h-[110px]">
+          // 4-line clamp keeps the card compact. The summary/v1.2 prompt
+          // targets 380-500 chars (≈4-5 lines at this width); longer
+          // returns get clamped with ellipsis rather than reflowing the card.
+          <p className="text-sm leading-relaxed text-foreground line-clamp-4 min-h-[88px]">
             {data.text}
           </p>
         )}

@@ -27,11 +27,7 @@ interface ThemeFrequencyChartProps {
 }
 
 const BAR_COLOR = "var(--primary)"
-// 100px matches SentimentTrendChart's YAxis width so the two side-by-side
-// chart cards have their plot areas (and zero ticks) aligned at the same X.
 const Y_AXIS_LABEL_WIDTH_PX = 100
-const ROW_HEIGHT_PX = 28
-const VERTICAL_PADDING_PX = 24
 // Truncate theme labels that would overflow the 100px band.
 const MAX_LABEL_CHARS = 16
 
@@ -66,7 +62,9 @@ export function ThemeFrequencyChart({ themes }: ThemeFrequencyChartProps) {
     count: themeCount.count,
   }))
 
-  const chartHeight = themes.length * ROW_HEIGHT_PX + VERTICAL_PADDING_PX
+  // Match SentimentTrendChart's height so the side-by-side cards have
+  // identical chart-container heights → X-axis baselines on the same row.
+  const chartHeight = UI_DIMENSIONS.sentimentTrendHeightPx
 
   return (
     <Card>

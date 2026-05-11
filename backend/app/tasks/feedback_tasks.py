@@ -10,7 +10,7 @@ import logging
 
 import redis as redis_sync
 
-from app.constants import FeedbackStatus, LlmCallType
+from app.constants import FeedbackStatus, LlmCallType, SkipReason
 from app.core.config import get_settings
 from app.events.pubsub import (
     publish_feedback_event_sync,
@@ -124,13 +124,11 @@ async def _do_extraction(feedback_id: int) -> dict:
             )
             raise
 
-        feedback.status = FeedbackStatus.EXTRACTED.value
-        feedback.sentiment = result.sentiment
-        feedback.themes = result.themes
-        feedback.action_items = result.action_items
-        feedback.language = result.language
-        feedback.llm_metadata = metadata
-
+        # Non-English skip: app is English-only for now; the LLM detects
+        # language as part of extraction, so we use that to flip the row to
+        # skipped post-call. Cost: one Anthropic call per non-English item.
+        # Production graduation = `langdetect` pre-LLM. Token usage IS still
+        # recorded so the operator can see what non-English traffic costs.
         usage_repo = LlmUsageRepository(session)
         await usage_repo.record(
             call_type=LlmCallType.EXTRACTION.value,
@@ -141,6 +139,37 @@ async def _do_extraction(feedback_id: int) -> dict:
             prompt_version=metadata.get("prompt_version"),
             feedback_id=feedback.id,
         )
+
+        if result.language != "en":
+            feedback.status = FeedbackStatus.SKIPPED.value
+            feedback.skip_reason = SkipReason.NON_ENGLISH_UNSUPPORTED.value
+            feedback.language = result.language
+            feedback.llm_metadata = metadata
+            await session.commit()
+
+            publish_feedback_event_sync(
+                redis_client,
+                feedback_id=feedback_id,
+                status=FeedbackStatus.SKIPPED.value,
+                payload={
+                    "skip_reason": SkipReason.NON_ENGLISH_UNSUPPORTED.value,
+                    "language": result.language,
+                },
+            )
+            publish_stats_invalidation_sync(redis_client)
+            return {
+                "feedback_id": feedback_id,
+                "status": FeedbackStatus.SKIPPED.value,
+                "skip_reason": SkipReason.NON_ENGLISH_UNSUPPORTED.value,
+                "language": result.language,
+            }
+
+        feedback.status = FeedbackStatus.EXTRACTED.value
+        feedback.sentiment = result.sentiment
+        feedback.themes = result.themes
+        feedback.action_items = result.action_items
+        feedback.language = result.language
+        feedback.llm_metadata = metadata
 
         await session.commit()
 

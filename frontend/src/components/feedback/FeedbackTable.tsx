@@ -69,7 +69,7 @@ export function FeedbackTable({ items }: FeedbackTableProps) {
 
   return (
     <div className="rounded-md border">
-      <table className="w-full text-sm border-separate border-spacing-0">
+      <table className="w-full text-sm border-separate border-spacing-0 table-fixed">
         <thead className="bg-muted">
           <tr>
             <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 w-24 border-b">
@@ -160,7 +160,7 @@ function FeedbackRow({ item, isExpanded, onToggle }: FeedbackRowProps) {
             <span className="text-xs text-muted-foreground">-</span>
           )}
         </td>
-        <td className="px-3 py-2 text-foreground">
+        <td className="px-3 py-2 text-foreground truncate max-w-0">
           {truncate(item.text, PREVIEW_MAX_CHARS)}
         </td>
         <td className="px-3 py-2">

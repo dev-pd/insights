@@ -15,6 +15,14 @@ class SkipReason(StrEnum):
     PROFANITY = "profanity"
     EMPTY = "empty"
     LLM_VALIDATION_ERROR = "llm_validation_error"
+    # English-only for now. Detected at the LLM layer (language field) and
+    # mapped here by the worker after extraction. Production graduation:
+    # add `langdetect` pre-LLM so we don't burn a call to find out.
+    NON_ENGLISH_UNSUPPORTED = "non_english_unsupported"
+    # Conservative regex-based detection of obvious prompt-override
+    # attempts ("ignore previous instructions", "reveal your prompt").
+    # Rejected at the validator so the LLM never sees the payload.
+    PROMPT_INJECTION = "prompt_injection"
 
 
 class LlmCallType(StrEnum):
