@@ -15,9 +15,9 @@ frontend/src/
 │   └── globals.css              @import "tailwindcss" + @theme inline
 ├── components/
 │   ├── ui/                      shadcn primitives (forwardRef inside, do not refactor)
-│   ├── shared/                  Cross-feature: HealthCheck, ProcessingPill, ToastStack
+│   ├── shared/                  Cross-feature: HealthCheck, ToastStack
 │   ├── feedback/                PasteForm, FeedbackList, FeedbackCard, FeedbackTable
-│   └── stats/                   KpiCard, StatsDashboard, ThemeFrequencyChart, SentimentTrendChart
+│   └── stats/                   KpiCard, StatsDashboard, ThemeFrequencyChart, SentimentTrendChart, ProcessingPill, StressTestButton
 ├── hooks/                       useFeedbackStream, useToast, useDashboardStats, useDebouncedValue
 ├── lib/
 │   ├── api/                     client.ts, routes.ts, types.ts
@@ -32,9 +32,9 @@ frontend/src/
 
 The home page `/` is the executive view — no input forms. Top → bottom:
 
-- **6 KPI cards** in `grid-cols-2 sm:grid-cols-3 lg:grid-cols-6`. Order: **Total feedback, Positive, Neutral, Negative, Today, Total tokens**. The three sentiment tiles cover the PDF's "sentiment distribution" requirement at a glance — counts not percentages so all three numbers add to `total_extracted` and the user can sanity-check by addition. Today carries a day-over-day trend arrow via `KpiCard.trend` (`"up"|"down"|"flat"|null`); arrow only renders when `|delta_pct| > 5pp` to keep small fluctuations from looking like real movement. Total tokens uses k/M formatting (`1234` → `1.2k`, `1234567` → `1.2M`) and a hint line showing the input/output split. `KPI_COUNT = 6` so the skeleton state matches loaded without a layout jump. The Avg-latency tile that lived here briefly got cut — too operator-facing for a product dashboard, and the data is still available via `llm_usage.latency_ms` for any reporting work.
-- **AI summary widget** sandwiched between KPIs and charts. Sources `GET /api/v1/summary` once per page; server owns freshness via Redis TTL. Manual refresh hits `POST /api/v1/summary/refresh` and writes back via `mutate(fresh, { revalidate: false })`. Refresh failures surface as toasts — never `console.log` in committed code. Footer shows `Updated Xm ago` + `· from cache` when payload came from cache. The widget renders raw text from `summary.text` in a fixed-footprint card; the active prompt (`summary/v1.2`) targets 380-500 chars so the card doesn't reflow when output length varies.
-- **Two charts side-by-side** below (`md:grid-cols-2`). Top themes (horizontal bar, last 7 days, top 10, reads `data.top_themes`). Sentiment trend (stacked bar, last 14 days, reads `data.sentiment_trend`). The Top-themes chart aggregates per-feedback theme labels across the corpus — each feedback contributes up to 3 themes (capped by `extraction/v1.3`), and the chart shows the 10 most-mentioned distinct theme names. Horizontal scroll wrapper is defensive for when `stats_top_themes_limit` gets raised above what fits in the viewport.
+- **6 KPI cards** in `grid-cols-2 sm:grid-cols-3 lg:grid-cols-6`. Order: Total feedback, Positive, Neutral, Negative, Today, Total tokens. Sentiment tiles use counts (not percentages) so they sum to `total_extracted` and the user can sanity-check by addition. Today carries a day-over-day arrow that only renders when `|delta_pct| > 5pp`. `KPI_COUNT = 6` keeps the skeleton matching loaded state.
+- **AI summary widget** between KPIs and charts. `GET /api/v1/summary` once per page; server owns freshness via Redis TTL. Manual refresh hits `POST /api/v1/summary/refresh` and writes back with `mutate(fresh, { revalidate: false })`. Active prompt (`summary/v1.2`) targets 380-500 chars so the card doesn't reflow when output length varies.
+- **Two charts side-by-side** (`md:grid-cols-2`). Top themes (horizontal bar, last 7 days, top 10). Sentiment trend (stacked bar, last 14 days). Each feedback contributes up to 3 themes — cap is in `app/llm/schema.py` (`max_length=3`), not the prompt. Horizontal scroll wrapper protects against `stats_top_themes_limit` being raised above viewport width.
 
 All three routes (`/`, `/add`, `/feedback`) put their `<h1>` directly in `app/<route>/page.tsx`, not inside child components.
 
@@ -100,36 +100,11 @@ Variants: `"success"` (emerald), `"error"` (rose), `"info"` (slate, default). De
 
 ## Multi-paste in PasteForm
 
-Radio toggle between single (whole textarea = 1 feedback) and multiple (split by `splitFeedbackTexts(text)`). Splitter logic:
-1. Tries blank-line separation first (`\n\s*\n+`) — paragraph-style copy from emails/Slack
-2. Falls back to single-newline split (`\n+`) — spreadsheet column copy
-3. Treats no-newline input as one feedback
-
-Live count below textarea; turns destructive when `count > MAX_BATCH_SIZE` (50). Submit button disables in that state — backend rejects > 50 with 422 anyway, but stopping at the form is friendlier than a round-trip error.
+Single/multiple radio toggle. Multiple uses `splitFeedbackTexts(text)` (blank-line first, single-newline fallback). Live count turns destructive at `count > MAX_BATCH_SIZE` (50) and disables submit — backend rejects > 50 with 422 anyway, but stopping at the form is friendlier.
 
 ## API types mirror backend
 
-Types in `lib/api/types.ts` must match what the backend returns. Update together in the same PR. The shape:
-
-```ts
-type Sentiment = "positive" | "neutral" | "negative"
-type FeedbackStatus = "processing" | "completed" | "failed" | "skipped"
-
-type FeedbackOut = {
-  id: string
-  text: string
-  status: FeedbackStatus
-  sentiment: Sentiment | null
-  themes: string[]
-  action_items: string[]
-  language: string | null
-  skip_reason: string | null
-  created_at: string
-  updated_at: string
-}
-```
-
-Use `as const` for readonly maps so TypeScript narrows keys (`SENTIMENT_LABELS["positive"]` → `"Positive"`, not `string`).
+Types in `lib/api/types.ts` must match what the backend returns; update together in the same PR. Use `as const` for readonly maps so TypeScript narrows keys (`SENTIMENT_LABELS["positive"]` → `"Positive"`, not `string`).
 
 ## Data fetching
 
@@ -200,13 +175,7 @@ Frontend-specific things we've hit. Cross-cutting gotchas (nginx restart, `.env`
 
 - **Predicate-based `mutate()` for paginated caches.** On a `feedback_update` event, `mutate(specificUrl, ...)` only patches one query-param permutation. Use the predicate form: `mutate((key) => typeof key === "string" && key.startsWith(API_ROUTES.feedbackPaginated), patcher, { revalidate: false })` so every cached page gets the patch.
 
-- **recharts has no native "frozen axis" support, and the obvious "two-chart sidecar" approach silently breaks.** Rendering a fixed-width left chart with `<YAxis />` only and a scrollable right chart with `<YAxis hide />` doesn't work — recharts has zero plot area to position tick labels against, and labels just don't render. The working pattern is **HTML-positioned axis labels** computed from shared geometry constants. See `ThemeFrequencyChart.tsx`:
-  ```
-  plotTopPx = TOP_MARGIN_PX
-  plotBottomPx = chartHeight - BOTTOM_MARGIN_PX - labelHeight
-  topPx for tick T = plotBottomPx - (T / max) * (plotBottomPx - plotTopPx) - lineHalfHeight
-  ```
-  Render `<span class="absolute" style={{top: topPx}}>{T}</span>` in a `position: relative` sidecar, with the scrollable chart next to it (`overflow-x-auto`, `<YAxis hide width={0} />`, same `domain`/`ticks` so bars scale correctly).
+- **recharts "frozen axis" needs HTML-positioned tick labels, not a sidecar chart.** The two-chart approach (fixed left with `<YAxis />`, scrollable right with `<YAxis hide />`) fails — recharts can't position labels against a zero-area plot. Working pattern in `ThemeFrequencyChart.tsx`: render `<span class="absolute" style={{top: ...}}>` ticks in a `position: relative` sidecar, with the scrollable chart next to it sharing `domain`/`ticks` so bars scale correctly. Math derived from shared geometry constants.
 
 - **Pin chart axis domains for visual stability.** Auto-scaled axes look great on a single screenshot but make day-over-day comparison impossible — a bar that meant "10 mentions" yesterday and today renders at different heights when the dataset grows. Use explicit `domain={[0, MAX]}` + `ticks={[...]}` from `UI_DIMENSIONS` constants. Counts above the ceiling clip rather than rescale.
 

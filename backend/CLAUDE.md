@@ -21,11 +21,11 @@ backend/app/
 ├── llm/
 │   ├── client.py                AsyncAnthropic + call_with_retry
 │   ├── extract.py, summarize.py
-│   ├── validate.py              Pre-LLM is_processable filter
+│   ├── validate.py              validate_feedback() — pre-LLM cheap-rejection filter
 │   ├── schema.py                ExtractionResult Pydantic
 │   └── prompts/
-│       ├── extraction/          v1.py, v1_1.py, v1_2.py (ACTIVE) + __init__ selector
-│       └── summary/             v1.py, v1_1.py + __init__ selector
+│       ├── extraction/          immutable versioned files + __init__ ACTIVE selector
+│       └── summary/             same layout
 ├── tasks/                       celery_app.py, feedback_tasks.py, _worker_session.py
 ├── constants.py                 FeedbackStatus, SkipReason (StrEnums)
 ├── db.py, exceptions.py, main.py
@@ -59,16 +59,7 @@ app/llm/
 
 **`call_with_retry` owns the retry loop.** Anthropic SDK's built-in retries are disabled (`max_retries=0` on `AsyncAnthropic`) so we get structured per-error-class logs. Retries on `APITimeoutError`, `APIConnectionError`, 429, 5xx with exponential backoff + jitter. Does NOT retry on 4xx other than 429 — those are bugs, not transient. Maps to typed exceptions: `APITimeoutError → LLMTimeoutError`, 429 → `LLMRateLimitError`, 5xx → `LLMError`, schema mismatch → `LLMValidationError`. Bounded concurrency via `asyncio.Semaphore(settings.llm_concurrency_limit)`.
 
-**Pre-LLM validation** (`validate_feedback()` returns `SkipReason | None`):
-
-| Trigger | SkipReason |
-|---|---|
-| Stripped length < `feedback_min_length` | `TOO_SHORT` |
-| Stripped length > `feedback_max_length` | `TOO_LONG` |
-| Alpha ratio < `feedback_min_alpha_ratio` | `GIBBERISH` |
-| Empty / whitespace-only | `EMPTY` |
-| `better_profanity` hit | `PROFANITY` |
-| Regex match on override patterns ("ignore previous instructions", etc.) | `PROMPT_INJECTION` |
+**Pre-LLM validation** (`validate_feedback()` returns `SkipReason | None`): length / alpha-ratio / profanity / empty / prompt-injection. See `app/constants.py:SkipReason` for the exhaustive list and `validate.py` for the rules.
 
 Plus two POST-LLM skip reasons set by the worker after extraction:
 - `NON_ENGLISH_UNSUPPORTED` — when `result.language != "en"` (app is English-only for now)
@@ -113,25 +104,16 @@ In Phase 4 each text dispatches to Celery; the endpoint returns immediately with
 
 ### LLM usage audit
 
-Every successful LLM call writes one row to `llm_usage` (`app/models/llm_usage.py`). Single source of truth for cost + latency + per-version analytics. Columns: `call_type` (`"extraction" | "summary"`), `model`, `input_tokens`, `output_tokens`, `latency_ms`, `prompt_version`, `feedback_id` (FK, nullable — extraction only). The dashboard doesn't render token/latency tiles in the current 5-KPI layout (those got cut as operator-facing telemetry), but the table is still the canonical source for any cost/latency reporting and gets read by the eval workflow when comparing prompt versions.
+Every successful LLM call writes one row to `llm_usage` (`app/models/llm_usage.py`). Single source of truth for cost + latency + per-version analytics. Columns: `call_type` (`"extraction" | "summary"`), `model`, `input_tokens`, `output_tokens`, `latency_ms`, `prompt_version`, `feedback_id` (FK, nullable — extraction only). Dashboard doesn't render token/latency tiles (cut as operator-facing telemetry); the table is still canonical for cost/latency reporting and the eval workflow reads it for per-prompt-version comparison.
 
-Skipped/failed paths don't record — no successful response → no tokens to capture.
+Pre-LLM skip paths (validator rejection) don't record — no API call. Post-LLM skip paths (NOISE, NON_ENGLISH_UNSUPPORTED) DO record because the worker calls `record()` BEFORE the skip-branch check; we paid for the call.
 
-### Prompt iteration: the agent loop
+### Prompt iteration
 
-Hardening the extraction prompt happens via a three-role pipeline orchestrated through the filesystem (no agent-to-agent IPC — files are the bus):
+`.claude/skills/prompt-engineering/SKILL.md` is the workflow source of truth — invoke when editing anything under `app/llm/prompts/`. Two non-negotiable rules:
 
-```
-edge-case-generator  →  golden/extraction.candidates.jsonl
-prompt-evaluator     →  reports/<UTC>-<version>.json
-main Claude + human  →  diagnose, refine, ship
-```
-
-The full flow (which files get touched when, what the per-round commit looks like) lives in `.claude/skills/prompt-engineering/SKILL.md` § "The human-minimal loop". When touching anything under `app/llm/prompts/` invoke that skill. Key rules:
-
-- **NEVER edit a released prompt version file** (`extraction/v1.py`, `v1_1.py`, etc.). Versions are immutable so production traces from `llm_usage.prompt_version` reproduce against the exact text on disk forever. New behavior = new version file + `__init__.py` ACTIVE bump.
-- **Rebuild BOTH backend AND worker images** when bumping ACTIVE — they have separate compose-built images even though both build from `./backend`. Symptom of forgetting: dashboard shows new version in eval reports but worker still runs old prompt on submitted feedback.
-- **Per-round commits land everything together**: new version file + ACTIVE bump + new/refined goldens + `baseline.json` (`observed_at_baseline` + raised `thresholds`) + the before/after report files + `NOTES.md` section-2 line. Commit message body MUST include metric deltas — that's the audit signal.
+- **NEVER edit a released prompt version file.** Versions are immutable so `llm_usage.prompt_version` traces reproduce against the exact text on disk. New behavior = new file + `__init__.py` ACTIVE bump.
+- **Rebuild BOTH backend AND worker images on ACTIVE bump.** Separate compose-built images even though both build from `./backend`. Symptom of forgetting: dashboard shows new version in eval reports but worker still runs old prompt on submitted feedback.
 
 ## No magic values
 
@@ -208,7 +190,7 @@ Status mapping in middleware: `InputValidationError → 400`, `LLMError → 502`
 - **Proxy headers:** uvicorn runs with `--proxy-headers --forwarded-allow-ips=*` because nginx is always in front. Real client IPs reach the request_id middleware (and any future per-IP rate limiting).
 - **Graceful shutdown:** FastAPI lifespan handles it automatically. Celery worker uses soft/hard time limits 120s/180s set on `celery_app.conf` (not the CLI — keeps source-of-truth in one place).
 
-## Async processing (Phase 4)
+## Async processing
 
 Feedback extraction runs through Celery. `POST /v1/feedback/batch` persists rows as `processing` then dispatches; worker picks up task, extracts, updates row, publishes to Redis pub/sub for the SSE stream.
 
@@ -249,7 +231,7 @@ Backend-specific things we've hit. Cross-cutting gotchas (nginx restart, fresh D
 
 - **JSONB key access is Postgres-specific.** `Feedback.llm_metadata["latency_ms"].astext` (then `func.cast(..., Float)` for aggregates) works on asyncpg/Postgres only. We're Postgres-only by design.
 
-- **`Base.metadata.create_all()` only creates missing tables.** No ALTER TABLE for column changes. Phase 1-4 relies on `docker compose down -v` to drop the volume and let create_all rebuild fresh. Production graduation = Alembic.
+- **`Base.metadata.create_all()` only creates missing tables.** No ALTER TABLE for column changes. Schema changes require `docker compose down -v` to drop the volume and let create_all rebuild fresh. Production graduation = Alembic.
 
 - **Anthropic SDK retries OFF (`max_retries=0`).** `client.py:get_client()` disables them deliberately; `call_with_retry()` owns the loop so we get structured per-error-class logs (`llm_timeout_retry`, `llm_rate_limit_retry`, `llm_5xx_retry`). Don't re-enable.
 
