@@ -13,7 +13,10 @@ log = logging.getLogger(__name__)
 T = TypeVar("T")
 
 _client: AsyncAnthropic | None = None
-_client_loop_id: int | None = None
+# Hold the loop OBJECT, not its id() — see the "Why object identity" note
+# below. Keeping a strong ref to one loop at a time is fine; we replace it
+# on each loop change so we never accumulate stale references.
+_client_loop: asyncio.AbstractEventLoop | None = None
 
 
 def get_client() -> AsyncAnthropic:
@@ -28,7 +31,7 @@ def get_client() -> AsyncAnthropic:
       task in a fork would reuse a client whose pool lives on a closed loop
       → first call raises a connection-level APIError → call_with_retry
       catches it, backs off 1s, retries on the live loop → succeeds. The
-      symptom was a `llm_transient_retry` warning + 1s of wasted backoff on
+      symptom is a `llm_transient_retry` WARNING + 1s of wasted backoff on
       every task after the first per fork.
 
       Rebuilding the client when the loop changes is cheap (no DNS/TLS
@@ -37,24 +40,36 @@ def get_client() -> AsyncAnthropic:
       explicitly aclose() on it.
 
       On the FastAPI backend side, there's one long-lived loop, so this
-      check is a no-op (loop_id stays stable) and the client is reused.
+      check is a no-op (the cached loop stays current) and the client is
+      reused.
+
+    Why object identity, not id():
+      The first version of this fix compared `id(loop)`. id() returns a
+      memory-address-based int that CPython reuses when the previous object
+      is GC'd. asyncio.run() creates+closes+GCs a loop per task, and the
+      next loop very often gets the same address → same id() → the check
+      missed every rebuild. The 30-item Haiku stress test caught this:
+      29/30 tasks still showed the warning. `is`/`is not` compare the
+      Python object directly and aren't fooled by address reuse.
     """
-    global _client, _client_loop_id
+    global _client, _client_loop
     try:
-        current_loop_id = id(asyncio.get_running_loop())
+        current_loop = asyncio.get_running_loop()
     except RuntimeError:
         # Called from sync context (shouldn't happen — every caller is
-        # `async def`). Use a sentinel so we don't rebuild on every call.
-        current_loop_id = -1
+        # `async def`). Skip the loop check entirely.
+        current_loop = None
 
-    if _client is None or _client_loop_id != current_loop_id:
+    if _client is None or _client_loop is not current_loop:
         settings = get_settings()
         _client = AsyncAnthropic(
             api_key=settings.anthropic_api_key.get_secret_value(),
             timeout=float(settings.llm_timeout_seconds),
             max_retries=0,
         )
-        _client_loop_id = current_loop_id
+        # Replacing the ref (vs appending) — we hold at most one loop
+        # reference at a time, so no accumulation across worker lifetime.
+        _client_loop = current_loop
     return _client
 
 

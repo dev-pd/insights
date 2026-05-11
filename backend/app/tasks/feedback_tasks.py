@@ -28,6 +28,10 @@ from app.tasks.celery_app import celery_app
 
 log = logging.getLogger(__name__)
 
+# Retry params resolved at module import — Celery decorator args can't be
+# late-bound. Reading from Settings keeps the source of truth in one place.
+_retry_settings = get_settings()
+
 
 def _sync_redis_client() -> redis_sync.Redis:
     """Sync Redis client for fire-and-forget publishes from worker context."""
@@ -181,12 +185,15 @@ async def _do_extraction(feedback_id: int) -> dict:
     name="app.tasks.feedback_tasks.extract_feedback_task",
     bind=True,
     # Retry only on transient errors. Validation errors / 4xx responses are
-    # our bug and shouldn't waste retry budget.
+    # our bug and shouldn't waste retry budget. LLMRateLimitError (429) is
+    # the most common trigger under stress-test load — the bumped retry
+    # budget (default 6/120 from Settings) is sized to absorb a multi-
+    # minute rate-limit burst.
     autoretry_for=(LLMError, TimeoutError, ConnectionError),
     retry_backoff=True,
-    retry_backoff_max=60,
+    retry_backoff_max=_retry_settings.celery_extract_retry_backoff_max,
     retry_jitter=True,
-    max_retries=3,
+    max_retries=_retry_settings.celery_extract_max_retries,
 )
 def extract_feedback_task(self, feedback_id: int) -> dict:
     """Celery entry point. Bridges sync → async via asyncio.run."""
