@@ -3,15 +3,15 @@
 ## Context-engineering decisions I'm proudest of
 
 **1. Scoped memory + on-demand skills, not one giant CLAUDE.md.** The root
-CLAUDE.md is 68 lines and points at scoped files rather than dumping. Real
-conventions live in `backend/CLAUDE.md` and `frontend/CLAUDE.md`, which
-auto-load only when Claude reads files in that directory. Three skills
-(`prompt-engineering`, `llm-workflow`, `backend-patterns`) carry deep
-implementation patterns and load on invoke, not per turn.
-`@.claude/context/architecture.md` is imported into the root for shared
-system shape. I also audited and trimmed these docs once they started
-drifting (commit `63b3a33` cut 791 lines of stale content) — keeping the
-harness honest is as important as building it.
+CLAUDE.md points at scoped files rather than dumping. Real conventions
+live in `backend/CLAUDE.md` and `frontend/CLAUDE.md`, which auto-load
+only when Claude reads files in that directory. Two skills
+(`prompt-engineering`, `llm-workflow`) carry the deep patterns and load
+on invoke, not per turn. `@.claude/context/architecture.md` is imported
+into the root for shared system shape. I deleted a third skill
+(`backend-patterns`) mid-project once its content drifted toward generic
+Python/FastAPI patterns Claude can infer from the codebase — a skill
+only earns its slot when the content is genuinely project-specific.
 
 **2. The prompt iteration triplet: harness + sub-agent + skill.** The
 eval harness runs 20 hand-curated goldens with `--check` exit codes for

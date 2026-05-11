@@ -104,7 +104,6 @@ The model is multilingual — no separate prompts per language. Language is extr
 ## See also
 
 - `.claude/skills/prompt-engineering/SKILL.md` — how to iterate prompts, write goldens, interpret eval output. Invoke this skill for prompt changes, not llm-workflow.
-- `.claude/skills/backend-patterns/SKILL.md` — Python implementation snippets (Settings, sessions, concurrency).
 - `.claude/agents/prompt-evaluator.md` — sub-agent that runs the eval harness.
 - `backend/CLAUDE.md` — backend conventions + gotchas (Anthropic-specific gotchas are here, not duplicated above).
 - `CASE_STUDIES.md` — the LLM-adjacent incidents (rate limits, event-loop binding, retry tuning).

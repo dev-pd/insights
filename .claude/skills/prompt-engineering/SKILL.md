@@ -130,6 +130,24 @@ Now decide: change the prompt (push canonical name harder), change the golden (r
 
 - **Do not commit prompts without running the eval first.** Always run before committing the `__init__.py` ACTIVE bump.
 
+## Traps
+
+### Forgetting to rebuild the backend image after editing a prompt
+
+The eval harness invokes `extract_insights` from inside a one-off backend container (the only environment with `ANTHROPIC_API_KEY` loaded via `env_file`). The container uses the **already-built** `insights-backend:latest` image — it does NOT mount the host's `backend/app/` source. So if you edit a prompt file and run the eval without rebuilding, you score the OLD prompt and the report still says `prompt_version: extraction/v1.X` (the previous active one) — which is a particularly confusing failure mode because the file on disk says the new one.
+
+The fix is one command, run after every prompt edit:
+
+```bash
+docker compose build backend && \
+  docker compose run --rm -v "$(pwd)/backend/evals:/app/evals:ro" \
+  backend python /app/evals/run_evals.py
+```
+
+Symptom that you forgot: the `prompt_version` field in the eval report doesn't match the `ACTIVE_VERSION` in `extraction/__init__.py`. Always sanity-check the first line of the eval output.
+
+The `evals/` directory IS mounted (`-v ... :ro`), so changes to goldens and the harness itself pick up without a rebuild. Only `app/` requires the rebuild.
+
 ## Cost notes
 
 | Model | Per eval run (15 goldens) |

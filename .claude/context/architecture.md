@@ -104,6 +104,6 @@ Worker config rationale (see backend/CLAUDE.md § Async processing for full deta
 - `backend/CLAUDE.md` — backend conventions, gotchas, full Settings field list.
 - `frontend/CLAUDE.md` — frontend conventions, SWR + SSE wiring.
 - `.claude/skills/llm-workflow/SKILL.md` — extraction internals, prompt versioning, eval harness.
-- `.claude/skills/backend-patterns/SKILL.md` — Python implementation snippets that don't repeat CLAUDE.md.
+- `.claude/skills/prompt-engineering/SKILL.md` — prompt iteration workflow + golden case schema.
 - `CASE_STUDIES.md` — production-shaped incidents (rate limits, event-loop binding, worker capacity).
 - `NOTES.md` — migration table and what's deferred to production.

@@ -143,8 +143,6 @@ Status mapping in middleware: `InputValidationError → 400`, `LLMError → 502`
 - Background tasks get their own session via `worker_session_scope` (built inside the async body — caching the engine at module level ties it to the FIRST asyncio.run() loop → `RuntimeError: Future attached to a different loop`).
 - Async engine with `pool_size`, `max_overflow`, `pool_pre_ping=True` from Settings. Pre-ping prevents stale-connection errors after Postgres drops idle conns.
 
-Code snippets for the engine setup + repository pattern live in the `backend-patterns` skill.
-
 ## Infrastructure boilerplate
 
 - **Request body cap:** Starlette `Limits` middleware caps raw body at 1MB. Pydantic field-level caps are separate; this is the outer wall.
