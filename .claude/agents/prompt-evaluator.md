@@ -48,18 +48,18 @@ If the JSON parse fails or the harness exits with code 2, the harness itself is 
 
 ## Quality bars
 
-The thresholds live in `backend/evals/baseline.json` under `thresholds`. As of writing:
+The thresholds live in `backend/evals/baseline.json` under `thresholds`. Current floors:
 
 | Metric | Threshold | Meaning |
 |---|---:|---|
-| `sentiment_accuracy` | 0.80 | Exact sentiment match rate. |
-| `theme_subset_pass_rate` | 0.70 | % of cases where every expected theme appeared as a substring in the returned themes. |
+| `sentiment_accuracy` | 0.90 | Exact sentiment match rate. |
+| `theme_subset_pass_rate` | 0.85 | % of cases where every expected theme appeared as a substring in the returned themes. |
 | `theme_count_pass_rate` | 0.95 | % of cases within the per-case `expected_themes_max_count`. |
-| `action_items_pass_rate` | 0.85 | % matching expected presence/absence of action items. |
+| `action_items_pass_rate` | 0.90 | % matching expected presence/absence of action items. |
 | `language_accuracy` | 0.95 | ISO 639-1 language code exact-match rate. |
-| `overall_pass_rate` | 0.60 | % of cases passing ALL applicable checks. |
+| `overall_pass_rate` | 0.80 | % of cases passing ALL applicable checks. |
 
-The active prompt **PASSES** only if every metric is at or above its threshold. The harness's `--check` flag does this comparison and sets the exit code; you don't have to.
+The active prompt **PASSES** only if every metric is at or above its threshold. The harness's `--check` flag does this comparison and sets the exit code; you don't have to. If the thresholds in `baseline.json` disagree with the table above, trust `baseline.json` — it's the source of truth.
 
 ## Output format
 
@@ -68,19 +68,21 @@ Report results in this exact structure. Be concise. No filler.
 ### On PASS
 
 ```
-PASS — active prompt: extraction/v1.1 on claude-haiku-4-5
+PASS — active prompt: <prompt_version> on <model>
 
 Metrics:
-  sentiment_accuracy:     <X.X>%  (≥ 80.0%)
-  theme_subset_pass_rate: <X.X>%  (≥ 70.0%)
+  sentiment_accuracy:     <X.X>%  (≥ 90.0%)
+  theme_subset_pass_rate: <X.X>%  (≥ 85.0%)
   theme_count_pass_rate:  <X.X>%  (≥ 95.0%)
-  action_items_pass_rate: <X.X>%  (≥ 85.0%)
+  action_items_pass_rate: <X.X>%  (≥ 90.0%)
   language_accuracy:      <X.X>%  (≥ 95.0%)
-  overall_pass_rate:      <X.X>%  (≥ 60.0%)
+  overall_pass_rate:      <X.X>%  (≥ 80.0%)
 
 Cases:   <N>
 Elapsed: <X>s
 ```
+
+Read `<prompt_version>` and `<model>` from the harness JSON's top-level fields. The threshold values in parentheses should match `baseline.json` at run time.
 
 ### On FAIL
 

@@ -27,7 +27,7 @@ When invoked, you will:
 - Worker concurrency lives in `CELERY_WORKER_CONCURRENCY` (default 3)
 - Active model lives in `LLM_MODEL` (Haiku / Sonnet / Opus)
 - Anthropic default tier: 50 RPM, 50,000 input TPM, both bite first depending on prompt size
-- See `/Users/pd/Desktop/Projects/insights/CASE_STUDIES.md` for the capacity case study and per-model recommended concurrency
+- See `CASE_STUDIES.md` at the repo root for the capacity case study (case 6) and per-model recommended concurrency
 
 ## Per-model cost (default Anthropic tier, ~1250 input + 100 output tokens per call)
 
@@ -46,7 +46,8 @@ Two entry points, pick whichever fits the operator's request:
 ```bash
 # Bash script — supports any N, chunks into 50-item batches under the hood.
 # Polls /v1/stats and prints a drain log + final summary.
-bash /Users/pd/Desktop/Projects/insights/backend/scripts/stress_test.sh <N>
+# Run from the repo root.
+bash backend/scripts/stress_test.sh <N>
 ```
 
 ```bash
