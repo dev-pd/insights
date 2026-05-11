@@ -60,6 +60,22 @@ cache miss never fired. Switched to object identity (`is`/`is not`) and
 the warning rate went to zero. Lesson, encoded in `client.py:get_client()`
 as a comment: declaring a fix needs evidence, not just "looks right."
 
+**The 429 retry-knob rabbit hole (Case Study 8).** A 100-item Haiku burst
+left 24 tasks in `FAILED` with `LLMRateLimitError`. First reaction was
+"retries are broken, tune them harder." Three knob-tweaks later the
+failure count was 5 instead of 24 and I was still tuning. The real fix
+was a one-line config change: `CELERY_WORKER_CONCURRENCY=3 → 1`. The
+math from Case Study 6 was already there — `3 workers × ~2s latency ×
+~1.5k tokens ≈ 90k tokens/min vs the 50k TPM cap, 1.8× over.` No retry
+config beats that. Retries spread failures over time; they don't change
+the average burn rate. The retry-after header honor + jitter floor +
+budget bump are still worth keeping (cleaner backoff, no thundering-herd
+re-fire on full-jitter zero), they just weren't load-bearing for the
+failure problem. Lesson: when iterating retry settings shrinks the
+failure count monotonically but never to zero, **stop tuning** and
+recompute the upstream rate against the cap. That's the only number
+that matters.
+
 ## What I'd add if this were long-lived
 
 - A golden set for the summary prompt (currently only extraction has one).
