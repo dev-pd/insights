@@ -15,16 +15,16 @@ only earns its slot when the content is genuinely project-specific.
 
 **2. A full prompt-iteration pipeline: generator → evaluator → human →
 golden set.** Two narrow sub-agents form the loop. `edge-case-generator`
-reads existing goldens + active prompt and proposes JSONL candidates for
-gaps in a coverage taxonomy (sentiment subtypes, theme synonyms,
-action-item presence/absence, absurd framings); it never writes files —
-a human approves what lands. `prompt-evaluator` runs the eval harness and
-reports pass/fail vs `baseline.json`. The loop actually ran: 6 candidates
-→ 5 passed v1.3 cleanly, 1 forced a golden refinement (the model was
-right to call a complaint-disguised question negative). 20 → 26 goldens
-now. Each piece has thresholds, file paths, and decision criteria baked
-in rather than punted to the model. The `prompt-engineering` skill
-documents the workflow.
+proposes JSONL candidates for gaps in a coverage taxonomy; it never
+writes files — a human approves what lands. `prompt-evaluator` runs the
+eval harness and reports pass/fail vs `baseline.json`. The loop ran
+twice: round 1 (sarcasm, technical-noise, unresolved-past-tense,
+question-as-feedback, competitor, vague-gripe) — 6 candidates, 5 passed
+v1.3, 1 forced a golden refinement. Round 2 (non-English breadth, code-
+switching, legal-compliance, URLs, long-form, theme-synonym collapse) —
+7 candidates, all passed. 20 → 33 goldens. Each piece has thresholds,
+file paths, and decision criteria baked in rather than punted to the
+model.
 
 **3. `CASE_STUDIES.md` as a separate decision log.** Production-shaped
 incidents (Anthropic rate-limit ceiling, asyncio event-loop binding bug,
