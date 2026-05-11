@@ -68,6 +68,7 @@ In Phase 4 each text dispatches to Celery; the endpoint returns immediately with
 - **`summary_min_feedback_items` floor (default 3):** below this, `generate_summary` short-circuits with a static message — model would otherwise produce useless output on a thin sample.
 - **Separate prompt family `summary_v1`:** different concern from per-item extraction; iterates independently. Past prompt versions stay in the tree forever so traces from `prompt_version` metadata reproduce.
 - **No tool_use forcing for summary:** we want prose, not JSON. `extract.py` forces it because downstream reads structured fields; `summarize.py` reads text content.
+- **Active summary prompt (`summary/v1.2`) targets 380-500 chars** in a fixed three-part structure (sentiment-direction opening with named praises + mention counts → "However" pivot to urgent issues with counts → priority callout). v1.1 had a loose "50-80 words max" guidance and outputs varied 180-550 chars, which reflowed the dashboard card unpredictably. The character target keeps the SummaryWidget card from layout-jumping.
 
 ### LLM usage audit
 
