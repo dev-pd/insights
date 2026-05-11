@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <clipPath id="planet">
+      <circle cx="16" cy="16" r="15"/>
+    </clipPath>
+    <radialGradient id="shade" cx="0.35" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.22"/>
+    </radialGradient>
+  </defs>
+  <circle cx="16" cy="16" r="15" fill="#e8c498"/>
+  <g clip-path="url(#planet)">
+    <ellipse cx="16" cy="5.5" rx="20" ry="2.2" fill="#b87a4a"/>
+    <ellipse cx="16" cy="10" rx="20" ry="1.4" fill="#f3dcb4"/>
+    <ellipse cx="16" cy="13.5" rx="20" ry="1.6" fill="#a86438"/>
+    <ellipse cx="16" cy="17.5" rx="20" ry="2.2" fill="#f3dcb4"/>
+    <ellipse cx="16" cy="22" rx="20" ry="1.9" fill="#a86438"/>
+    <ellipse cx="16" cy="26.5" rx="20" ry="1.6" fill="#c48958"/>
+    <ellipse cx="20.5" cy="20.5" rx="2.8" ry="1.5" fill="#c4412a"/>
+  </g>
+  <circle cx="16" cy="16" r="15" fill="url(#shade)"/>
+</svg>
