@@ -21,6 +21,7 @@ class SkipReason(StrEnum):
     NON_ENGLISH_UNSUPPORTED = "non_english_unsupported"
     PROMPT_INJECTION = "prompt_injection"
     NOISE = "noise"
+    STRUCTURED_DATA = "structured_data"
 
 
 class LlmCallType(StrEnum):

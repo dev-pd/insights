@@ -1,9 +1,26 @@
+import json
 import re
 
 from better_profanity import profanity
 
 from app.constants import SkipReason
 from app.core.config import get_settings
+
+
+def _looks_like_structured_data(stripped: str) -> bool:
+    """Detects pasted JSON / serialized objects. The LLM would otherwise
+    burn tokens trying to summarize a serialized blob (and usually flag it
+    as `is_noise=True` post-LLM anyway — pre-LLM rejection is free)."""
+    if len(stripped) < 2:
+        return False
+    first, last = stripped[0], stripped[-1]
+    if (first == "{" and last == "}") or (first == "[" and last == "]"):
+        try:
+            parsed = json.loads(stripped)
+        except (json.JSONDecodeError, ValueError):
+            return False
+        return isinstance(parsed, (dict, list))
+    return False
 
 
 # High-precision (not high-recall) prompt-injection patterns. The `.{0,40}`
@@ -43,6 +60,9 @@ def validate_feedback(text: str) -> SkipReason | None:
 
     if len(stripped) > settings.feedback_max_length:
         return SkipReason.TOO_LONG
+
+    if _looks_like_structured_data(stripped):
+        return SkipReason.STRUCTURED_DATA
 
     alpha_chars = sum(1 for char in stripped if char.isalpha())
     if alpha_chars / len(stripped) < settings.feedback_min_alpha_ratio:

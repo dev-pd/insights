@@ -25,6 +25,10 @@ export type SkipReason =
   | "gibberish"
   | "profanity"
   | "llm_validation_error"
+  | "non_english_unsupported"
+  | "prompt_injection"
+  | "noise"
+  | "structured_data"
 
 export interface LlmMetadata {
   model?: string
