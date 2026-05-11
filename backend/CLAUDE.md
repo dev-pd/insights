@@ -1,59 +1,26 @@
 # Backend conventions
 
-Project-specific rules for `backend/`. Generic Python conventions (type hints, naming, PEP 8 imports, no bare excepts) are assumed — this file documents what's load-bearing for *this* codebase.
+Project-specific rules for `backend/`. Generic Python conventions (type hints, naming, PEP 8 imports, no bare excepts) are assumed.
 
-## Folder structure
+Stack: Python 3.13, `uv` (never `pip install`), `ruff`, `pytest`, FastAPI + SQLAlchemy async + asyncpg + Celery + redis-py + Anthropic SDK. Pinned versions in `uv.lock`.
+
+## Layering rules
 
 ```
-backend/app/
-├── api/
-│   ├── deps.py                  Annotated DI aliases (SettingsDep, SessionDep, ...)
-│   ├── health.py                /health, /ready
-│   └── v1/router.py + routes/   /v1/feedback, /v1/stats, /v1/summary, /v1/events (SSE)
-├── core/
-│   ├── config.py                Pydantic Settings (singleton via @lru_cache)
-│   └── logging.py               JSON logging setup
-├── middleware/                  request_id, exceptions
-├── models/                      Feedback, LlmUsage (one entity per file)
-├── repositories/                CRUD + aggregations (only place SQLAlchemy queries live)
-├── schemas/                     Pydantic request/response models (feedback, stats, summary, ...)
-├── services/                    Business logic; never imports SQLAlchemy directly
-├── llm/
-│   ├── client.py                AsyncAnthropic + call_with_retry
-│   ├── extract.py, summarize.py
-│   ├── validate.py              validate_feedback() — pre-LLM cheap-rejection filter
-│   ├── schema.py                ExtractionResult Pydantic
-│   └── prompts/
-│       ├── extraction/          immutable versioned files + __init__ ACTIVE selector
-│       └── summary/             same layout
-├── tasks/                       celery_app.py, feedback_tasks.py, summary_tasks.py, worker_session.py
-├── constants.py                 FeedbackStatus, SkipReason (StrEnums)
-├── db.py, exceptions.py, main.py
-
-backend/tests/                   pytest + pytest-asyncio
-backend/evals/                   Eval harness (run_evals.py, golden/, baseline.json)
-backend/scripts/                 Ops scripts (stress_test.sh + DB recovery SQL)
+api/  →  services/  →  repositories/  →  models/ + db.py
+              ↓
+            llm/        (no HTTP, no DB, no repositories — bounded context)
 ```
 
-## Tooling
-
-Python 3.13, `uv` for package management (never `pip install` directly), `ruff` for lint/format, `pytest` for tests. Library versions pinned in `uv.lock`: FastAPI 0.136, Pydantic 2.13, SQLAlchemy 2.0.49 async, asyncpg, uvicorn 0.46, Anthropic SDK 0.100, Celery 5.6, redis-py 7.4.
+- **`repositories/` is the ONLY place SQLAlchemy queries live.** Services and routes never import `sqlalchemy.*` directly.
+- **`services/` owns business logic.** Stateless coordinators over repos + LLM module.
+- **`models/` — one entity per file.** Indexes declared on the model so `Base.metadata.create_all()` produces them.
+- **`llm/` is portable.** Plain text in / Pydantic out. Lifts cleanly into a host codebase.
+- **`tasks/` — Celery body bridges to async via `asyncio.run`.** `worker_session.py` builds an engine per task (loop binding — see Case Study 7).
 
 ## LLM module (`app/llm/`)
 
-Bounded context — no HTTP, no DB, plain text in / Pydantic out. Lifts cleanly into a host codebase. Read the real files for code; this section documents the *why*.
-
-```
-app/llm/
-├── client.py     AsyncAnthropic singleton + call_with_retry wrapper
-├── extract.py    extract_insights() — tool-use extraction
-├── summarize.py  generate_summary() — prose summary over many rows
-├── schema.py     ExtractionResult Pydantic (sentiment, themes, action_items, language, is_noise)
-├── validate.py   validate_feedback() — pre-LLM cheap-rejection filter
-└── prompts/
-    ├── extraction/  immutable versioned files + __init__ ACTIVE selector
-    └── summary/     same layout
-```
+Bounded context — no HTTP, no DB, plain text in / Pydantic out. Lifts cleanly into a host codebase. The folder structure above lists the files; this section documents the *why*.
 
 **Tool use as extraction (not freeform JSON).** `extract.py` forces a structured response with `tool_choice={"type": "tool", "name": "extract_insights"}`. Three reasons: Anthropic constrains the tool input to match `input_schema` (freeform JSON has no such guarantee); no markdown-fence parsing; Pydantic round-trip is the single source of truth. Field `description` strings are read by Claude as part of the prompt — write them like instructions to a human annotator. Forced tool name must match the `tools=[...]` entry exactly (use the `TOOL_NAME` constant; mismatch → `LLMSchemaError("No extract_insights tool_use in response")`).
 
@@ -71,46 +38,24 @@ Plus two POST-LLM skip reasons set by the worker after extraction:
 
 For prompt iteration workflow (versioning, golden cases, eval gates, baseline updates): `.claude/skills/prompt-engineering/SKILL.md`.
 
-## API router composition
+## API endpoints — non-obvious behavior
 
-Sub-routers organized under `app/api/__init__.py`: `v1_router` gets `prefix="/v1"`, `ops_router` stays unprefixed. `main.py` mounts both.
+Routes mount under `/v1/*` (the `v1_router`) plus unprefixed `/health` + `/ready`. Most behavior follows directly from the route signature + response schema; this section only documents the surprises.
 
-### Batch feedback endpoint
-
-`POST /v1/feedback/batch` accepts `{texts: list[str]}` (1-50 items). Each text validates → extracts or skips → persists. Per-item failures isolated: any unexpected exception during one item gets caught, logged, persisted as a FAILED row so the batch keeps moving.
-
-Response: `{ items: [...], total: N, extracted: E, skipped: S, failed: F }` where `total = extracted + skipped + failed`.
-
-Each text dispatches to Celery; the endpoint returns immediately with `processing` rows and SSE streams completion. `FeedbackService.create_feedback_batch` is the dispatch boundary — body changes, signature doesn't.
-
-### Stats schema
-
-`GET /v1/stats` returns `StatsOut` shaped for the 6-KPI dashboard. Two non-obvious choices:
-- `today_delta.delta_pct` is `null` when `yesterday_count == 0` so the UI renders `-` instead of infinity. Day-over-day windows anchor on `now` (UTC), not midnight, so live submissions appear immediately.
-- `count_in_window` uses half-open intervals `[start, end)` so back-to-back windows don't double-count the boundary instant.
-
-### Summary endpoints
-
-`GET /v1/summary` reads from Redis cache (key `summary:current`, TTL = `summary_cache_ttl_seconds`, default 3600). `POST /v1/summary/refresh` deletes the key, regenerates, writes back.
-
-- **LLM failures are NOT cached.** A bad minute at Anthropic shouldn't lock the dashboard into "broken" for a full TTL — error path returns `cached=false`, `error="..."`, no Redis write.
-- **`summary_min_feedback_items` floor (default 3):** below this, `generate_summary` short-circuits with a static message — model would otherwise produce useless output on a thin sample.
-- **Separate prompt family `summary_v1`:** different concern from per-item extraction; iterates independently. Past prompt versions stay in the tree forever so traces from `prompt_version` metadata reproduce.
-- **No tool_use forcing for summary:** we want prose, not JSON. `extract.py` forces it because downstream reads structured fields; `summarize.py` reads text content.
-- **Active summary prompt (`summary/v1.2`) targets 380-500 chars** in a fixed three-part structure (sentiment-direction opening with named praises + mention counts → "However" pivot to urgent issues with counts → priority callout). v1.1 had a loose "50-80 words max" guidance and outputs varied 180-550 chars, which reflowed the dashboard card unpredictably. The character target keeps the SummaryWidget card from layout-jumping.
+- **`POST /v1/feedback/batch`**: per-item fault isolation — one item's exception is caught and persisted as FAILED so the batch keeps moving.
+- **`GET /v1/stats`** — `today_delta.delta_pct` is `null` when `yesterday_count == 0` (UI renders `-` instead of infinity). Day-over-day windows anchor on `now` UTC, not midnight, so live submissions appear immediately. `count_in_window` uses half-open `[start, end)` intervals.
+- **`GET /v1/summary`** — LLM failures are NOT cached: error path returns `cached=false, error="..."` with no Redis write so a bad Anthropic minute can't lock the dashboard. `summarize.py` does NOT force tool_use (we want prose, not JSON).
 
 ### LLM usage audit
 
-Every successful LLM call writes one row to `llm_usage` (`app/models/llm_usage.py`). Single source of truth for cost + latency + per-version analytics. Columns: `call_type` (`"extraction" | "summary"`), `model`, `input_tokens`, `output_tokens`, `latency_ms`, `prompt_version`, `feedback_id` (FK, nullable — extraction only). Dashboard doesn't render token/latency tiles (cut as operator-facing telemetry); the table is still canonical for cost/latency reporting and the eval workflow reads it for per-prompt-version comparison.
-
-Pre-LLM skip paths (validator rejection) don't record — no API call. Post-LLM skip paths (NOISE, NON_ENGLISH_UNSUPPORTED) DO record because the worker calls `record()` BEFORE the skip-branch check; we paid for the call.
+Every successful LLM call writes a row to `llm_usage` (`app/models/llm_usage.py`) — canonical for cost + latency + per-prompt-version analytics. Pre-LLM skip paths (validator) don't record (no API call). **Post-LLM skip paths (NOISE, NON_ENGLISH_UNSUPPORTED) DO record** because the worker calls `record()` BEFORE the skip-branch check; we paid for the call.
 
 ### Prompt iteration
 
-`.claude/skills/prompt-engineering/SKILL.md` is the workflow source of truth — invoke when editing anything under `app/llm/prompts/`. Two non-negotiable rules:
+Workflow lives in `.claude/skills/prompt-engineering/SKILL.md` — invoke when editing anything under `app/llm/prompts/`. Two non-negotiable rules:
 
 - **NEVER edit a released prompt version file.** Versions are immutable so `llm_usage.prompt_version` traces reproduce against the exact text on disk. New behavior = new file + `__init__.py` ACTIVE bump.
-- **Rebuild BOTH backend AND worker images on ACTIVE bump.** Separate compose-built images even though both build from `./backend`. Symptom of forgetting: dashboard shows new version in eval reports but worker still runs old prompt on submitted feedback.
+- **Rebuild BOTH backend AND worker images on ACTIVE bump.** Separate compose-built images. Symptom of forgetting: dashboard shows new version in eval reports but worker still runs old prompt on submitted feedback.
 
 ## No magic values
 
@@ -129,19 +74,7 @@ Workflow for a new tunable: add field to `app/core/config.py:Settings` → add e
 
 ## Structured logging
 
-JSON logs configured in `app/core/logging.py`, called once from `main.py` lifespan. **Always use `extra={...}` for context**, never f-strings (`logger.info(f"...{id}...")` breaks the structured fields).
-
-Required fields by event:
-
-| Event | Level | Fields |
-|---|---|---|
-| Endpoint entry | INFO | event, path, method, request_id |
-| LLM call start/complete | INFO | event, prompt_version, latency_ms, input/output_tokens, request_id |
-| LLM call failed | WARNING/ERROR | event, error_type, attempt, request_id |
-| Feedback skipped | INFO | event, skip_reason, feedback_id, request_id |
-| Caught exception | ERROR | full traceback via `logger.exception()`, request_id |
-
-`request_id` propagates via middleware → context var → log lines → Celery task args → LLM client metadata. Every log line for one user action carries the same id.
+JSON logs configured in `app/core/logging.py`, called once from `main.py` lifespan. **Always use `extra={...}` for context**, never f-strings — f-strings break the structured fields and lose the per-user `request_id` that propagates middleware → context var → log lines → Celery task args → LLM client metadata.
 
 ## Custom exceptions
 
@@ -165,22 +98,9 @@ Layered handling: LLM client catches transient errors and retries → service ca
 
 ## Async processing
 
-Feedback extraction runs through Celery. `POST /v1/feedback/batch` persists rows as `processing` then dispatches; worker picks up task, extracts, updates row, publishes to Redis pub/sub for the SSE stream. Worker config and retry policy live in `app/tasks/celery_app.py` (read the file).
+Worker config lives in `app/tasks/celery_app.py` (read the file). Three Redis logical DBs on one instance: **db 0** = summary cache + pub/sub (`events:feedback_update`, `events:stats_invalidate`); **db 1** = Celery broker; **db 2** = result backend. Beat schedule: `regenerate-summary-hourly` at :00 keeps the summary cache warm.
 
-Redis topology (one instance, three logical DBs):
-- `db 0` — summary cache + pub/sub channels (`events:feedback_update`, `events:stats_invalidate`)
-- `db 1` — Celery broker
-- `db 2` — Celery result backend
-
-Beat schedule: `regenerate-summary-hourly` at :00 keeps the dashboard summary cache warm.
-
-### SSE endpoint
-
-`GET /v1/events` streams `text/event-stream`. Loop polls pubsub with 1s timeout so we can check client-disconnect + heartbeat-due frequently. Heartbeat (SSE comment) fires every `sse_heartbeat_interval_seconds` (default 30s) to keep the connection alive through nginx idle timeouts.
-
-Events: `connected` (one-shot on subscribe), `feedback_update` (per worker completion), `stats_invalidate` (per worker completion).
-
-Workers use sync redis (`publish_feedback_event_sync`); SSE endpoint uses async `pubsub.subscribe`. Both target db 0. Helpers swallow publish failures at WARNING so a pub/sub outage never poisons the main flow.
+**SSE** (`GET /v1/events`): loop polls pubsub with 1s timeout so client-disconnect + heartbeat are checked frequently. Heartbeat (SSE comment line) fires every `sse_heartbeat_interval_seconds` (default 30s) to survive nginx idle timeouts. Workers publish via sync redis; SSE endpoint subscribes via async — both target db 0. Publish failures swallowed at WARNING so a pub/sub outage doesn't poison the main flow.
 
 ## Testing
 
