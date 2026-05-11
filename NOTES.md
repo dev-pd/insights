@@ -55,8 +55,9 @@ rate against the cap.
   regression.
 - `harness-doc-drift` checker — diffs CLAUDE.md claims (paths, Settings
   names) against the codebase.
-- Stress-test triage subagent — classifies failures from `stress_test.sh`
-  log clusters and suggests config moves.
+- `/cost-week` slash command — summarizes the `llm_usage` table by
+  `call_type` + `prompt_version` for the last 7 days; surfaces spend
+  drift after a prompt bump.
 - MCP to an issue tracker — `status=failed` rows one-click ticketable,
   pre-filled with prompt version + llm_metadata.
 
