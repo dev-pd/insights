@@ -28,14 +28,14 @@ Keeps CLAUDE.md tight without losing the "why."
 
 ## What didn't work, and what I changed
 
-**Subagent curation.** Built a third agent (`stress-tester`, 215 lines)
-early — orchestrator for `stress_test.sh` + diagnostic SQL + cost gates.
-Zero invocations during the build. Deleted it (commit `95a1708`) —
-main Claude ran the script and SQL inline. Same criterion killed two
-skills (`backend-patterns`, `llm-workflow`) for duplicating CLAUDE.md.
-A subagent or skill earns its slot only when invoked AND non-trivial
-to inline — same review discipline as code, delete what
-isn't earning its slot.
+**Subagent curation.** I built a third agent (`stress-tester`, 215
+lines) early. Measured usage during the build: zero invocations.
+Deleted it (commit `95a1708`) — main Claude ran the script and SQL
+inline more directly. Same criterion killed two skills
+(`backend-patterns`, `llm-workflow`) for duplicating CLAUDE.md. Lesson:
+a subagent or skill earns its slot only when actually invoked AND
+non-trivial to inline. I treat the harness like code review — delete
+what isn't paying its way.
 
 **The 429 retry-knob rabbit hole ([Case Study 8](./CASE_STUDIES.md#case-study-8--the-429-retry-knob-rabbit-hole-rediscovering-cs6-the-hard-way)).**
 100-item burst left 24 tasks `FAILED`. Knee-jerk: tune retries. Three
