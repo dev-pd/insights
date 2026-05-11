@@ -23,5 +23,5 @@ export const UI_DIMENSIONS = {
   // Sidecar frozen YAxis — see dual-chart pattern in ThemeFrequencyChart.
   themeChartYAxisWidthPx: 44,
   sentimentTrendHeightPx: 280,
-  feedbackPageSize: 20,
+  feedbackPageSize: 10,
 } as const

@@ -2,6 +2,7 @@
 
 import { mutate } from "swr"
 
+import { EdgeCasesPanel } from "@/components/feedback/EdgeCasesPanel"
 import { PasteForm } from "@/components/feedback/PasteForm"
 import { API_ROUTES } from "@/lib/api/routes"
 import type { Feedback } from "@/lib/api/types"
@@ -36,6 +37,8 @@ export default function AddFeedbackPage() {
       </div>
 
       <PasteForm onCreated={handleCreated} />
+
+      <EdgeCasesPanel />
     </main>
   )
 }

@@ -121,76 +121,76 @@ export default function FeedbackPage() {
   }
 
   return (
-    <main className="container mx-auto max-w-5xl px-4 py-8 flex flex-col gap-6">
-      <header className="flex flex-col gap-4">
+    // Calc fills the viewport below the h-14 navbar. Header + pagination
+    // sit outside the scroll region; only the table body scrolls.
+    <main className="container mx-auto max-w-5xl px-4 py-6 flex flex-col gap-4 h-[calc(100vh-3.5rem)]">
+      <header className="flex flex-col gap-3 flex-shrink-0">
         <h1 className="text-2xl font-bold">{feedbackCopy.list.title}</h1>
 
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <SearchInput value={searchInput} onChange={handleSearchChange} />
-            <SentimentFilter
-              value={sentimentFilter}
-              onChange={handleFilterChange}
-            />
-          </div>
-
-          {data && data.total > 0 && (
-            <span className="text-sm text-muted-foreground tabular-nums">
-              {hasActiveSearch
-                ? feedbackCopy.search.resultCount(data.total, trimmedSearch)
-                : feedbackCopy.table.showingCount(
-                    offset + 1,
-                    Math.min(offset + PAGE_SIZE, data.total),
-                    data.total,
-                  )}
-            </span>
-          )}
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <SearchInput value={searchInput} onChange={handleSearchChange} />
+          <SentimentFilter
+            value={sentimentFilter}
+            onChange={handleFilterChange}
+          />
         </div>
+
+        {data && data.total > 0 && (
+          <span className="text-sm text-muted-foreground tabular-nums">
+            {hasActiveSearch
+              ? feedbackCopy.search.resultCount(data.total, trimmedSearch)
+              : feedbackCopy.table.showingCount(
+                  offset + 1,
+                  Math.min(offset + PAGE_SIZE, data.total),
+                  data.total,
+                )}
+          </span>
+        )}
       </header>
 
-      {isLoading && !data ? (
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: SKELETON_ROW_COUNT }).map((_, index) => (
-            <Skeleton key={index} className="h-10 w-full" />
-          ))}
-        </div>
-      ) : error ? (
-        <p className="text-sm text-destructive">
-          {error instanceof Error ? error.message : common.errors.generic}
-        </p>
-      ) : !data || data.items.length === 0 ? (
-        <div className="flex flex-col gap-2 py-8 text-center">
-          {hasActiveSearch ? (
-            <>
-              <p className="text-base font-medium">
-                {feedbackCopy.search.noResultsTitle}
-              </p>
+      <div className="flex-1 min-h-0 overflow-y-auto -mx-4 px-4">
+        {isLoading && !data ? (
+          <div className="flex flex-col gap-2">
+            {Array.from({ length: SKELETON_ROW_COUNT }).map((_, index) => (
+              <Skeleton key={index} className="h-10 w-full" />
+            ))}
+          </div>
+        ) : error ? (
+          <p className="text-sm text-destructive">
+            {error instanceof Error ? error.message : common.errors.generic}
+          </p>
+        ) : !data || data.items.length === 0 ? (
+          <div className="flex flex-col gap-2 py-8 text-center">
+            {hasActiveSearch ? (
+              <>
+                <p className="text-base font-medium">
+                  {feedbackCopy.search.noResultsTitle}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {feedbackCopy.search.noResultsHint(trimmedSearch)}
+                </p>
+              </>
+            ) : (
               <p className="text-sm text-muted-foreground">
-                {feedbackCopy.search.noResultsHint(trimmedSearch)}
+                {sentimentFilter === "all"
+                  ? feedbackCopy.table.emptyAllMessage
+                  : feedbackCopy.table.emptyMessage}
               </p>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {sentimentFilter === "all"
-                ? feedbackCopy.table.emptyAllMessage
-                : feedbackCopy.table.emptyMessage}
-            </p>
-          )}
-        </div>
-      ) : (
-        <>
+            )}
+          </div>
+        ) : (
           <FeedbackTable items={data.items} />
+        )}
+      </div>
 
-          {totalPages > 1 && (
-            <div className="flex justify-center pt-4">
-              <Pagination
-                currentPage={page}
-                totalPages={totalPages}
-                onPageChange={setPage}
-              />
-            </div>
-          )}
-        </>
+      {totalPages > 1 && (
+        <div className="flex-shrink-0 flex justify-center pt-2 border-t">
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+          />
+        </div>
       )}
     </main>
   )

@@ -137,9 +137,14 @@ export function SummaryWidget() {
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {hasError ? (
-          <p className="text-sm text-destructive">{statsCopy.summary.error}</p>
+          <p className="text-sm text-destructive min-h-[140px]">{statsCopy.summary.error}</p>
         ) : (
-          <p className="text-sm leading-relaxed text-foreground">{data.text}</p>
+          // Fixed footprint: 6-line clamp + min-height matches the prompt's
+          // 380-500 char target (see summary/v1.2). Keeps the card from
+          // jumping size run-to-run.
+          <p className="text-sm leading-relaxed text-foreground line-clamp-6 min-h-[140px]">
+            {data.text}
+          </p>
         )}
 
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
