@@ -23,7 +23,13 @@ three forced golden refinements (overspecified subsets), and one
 exposed a real over-extraction weakness that v1.4 fixed with a new
 "one-topic discipline" rule. 20 → 40 goldens, v1.3 → v1.4,
 `overall_pass_rate` 80% → 95%. Each piece has thresholds, file paths,
-and decision criteria baked in rather than punted to the model.
+and decision criteria baked in rather than punted to the model. Rounds
+4-5 then pushed v1.4 with a 14-case red-team batch — round 4 passed
+clean, round 5 failed 3/7 and surfaced three more failure modes
+(action-items suppressed by positive sentiment, dev-API vocab missing
+from the synonym list, "works as expected" misread as positive). v1.5
+hardened all three; 39 → 53 goldens, `overall_pass_rate` held at 100%
+across the broader set.
 
 **3. `CASE_STUDIES.md` as a separate decision log.** Production-shaped
 incidents (Anthropic rate-limit ceiling, asyncio event-loop binding bug,

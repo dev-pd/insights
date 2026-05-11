@@ -1,0 +1,323 @@
+{
+  "prompt_version": "extraction/v1.4",
+  "model": "claude-haiku-4-5",
+  "n_cases": 7,
+  "elapsed_seconds": 9.7,
+  "metrics": {
+    "sentiment_accuracy": 0.857,
+    "theme_subset_pass_rate": 1.0,
+    "theme_count_pass_rate": 0.857,
+    "action_items_pass_rate": 0.857,
+    "language_accuracy": 1.0,
+    "overall_pass_rate": 0.571
+  },
+  "cases": [
+    {
+      "id": "sentiment-allcaps-rage",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "account",
+            "support"
+          ],
+          "actual_themes": [
+            "account access",
+            "support"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "resolve account lockout immediately",
+            "improve support response time"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1103,
+      "input_tokens": 1968,
+      "output_tokens": 104
+    },
+    {
+      "id": "markup-emoji-mixed",
+      "all_pass": false,
+      "checks": {
+        "sentiment": {
+          "expected": "positive",
+          "actual": "positive",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "report"
+          ],
+          "actual_themes": [
+            "dashboard",
+            "reports"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 0,
+          "actual_items": [],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": false
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 986,
+      "input_tokens": 1976,
+      "output_tokens": 91
+    },
+    {
+      "id": "language-arabic-complaint",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": [
+            "app crashes",
+            "settings"
+          ]
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "fix app crashes when opening settings",
+            "prioritize stability of settings feature"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "ar",
+          "actual": "ar",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1218,
+      "input_tokens": 1978,
+      "output_tokens": 107
+    },
+    {
+      "id": "codeswitching-low-density",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "dashboard"
+          ],
+          "actual_themes": [
+            "dashboard",
+            "analytics"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 2,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "fix dashboard loading issue when viewing past analytics",
+            "investigate infinite loading state for historical data queries"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "es",
+          "actual": "es",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1850,
+      "input_tokens": 1968,
+      "output_tokens": 110
+    },
+    {
+      "id": "themes-api-synonym-collapse",
+      "all_pass": false,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "rate limit"
+          ],
+          "actual_themes": [
+            "rate limiting",
+            "quota"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 1,
+          "actual": 2,
+          "pass": false
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 3,
+          "actual_items": [
+            "increase default rate limits or quota allocation",
+            "provide higher tier plans with increased quotas",
+            "implement gradual quota reset or burst allowance to prevent daily pipeline blockage"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 2453,
+      "input_tokens": 1961,
+      "output_tokens": 127
+    },
+    {
+      "id": "sentiment-works-as-expected",
+      "all_pass": false,
+      "checks": {
+        "sentiment": {
+          "expected": "neutral",
+          "actual": "positive",
+          "pass": false
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": []
+        },
+        "themes_count": {
+          "max": 2,
+          "actual": 0,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": false,
+          "actual_count": 0,
+          "actual_items": [],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 815,
+      "input_tokens": 1931,
+      "output_tokens": 67
+    },
+    {
+      "id": "actions-rhetorical-question",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "export"
+          ],
+          "actual_themes": [
+            "export"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 2,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 1,
+          "actual_items": [
+            "fix export button functionality to actually export data when clicked"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1261,
+      "input_tokens": 1945,
+      "output_tokens": 99
+    }
+  ]
+}

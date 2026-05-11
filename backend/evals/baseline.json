@@ -2,9 +2,9 @@
   "schema_version": 1,
   "_comment": "Quality bars for the extraction eval harness. `--check` exits non-zero if any metric drops below its threshold. Thresholds are set ~5-10pp below observed-at-baseline so flaky LLM variance doesn't false-positive — they're absolute floors, not the target. To raise the bar (because a new prompt observably beats the current numbers), update thresholds and observed_at_baseline together in one commit and document the diff in the commit message.",
   "captured_at_baseline": {
-    "prompt_version": "extraction/v1.4",
+    "prompt_version": "extraction/v1.5",
     "model": "claude-haiku-4-5",
-    "n_cases": 39,
+    "n_cases": 53,
     "date_utc": "2026-05-11"
   },
   "thresholds": {

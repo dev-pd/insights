@@ -133,15 +133,17 @@ async def _evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
     # Action items: two checks rolled into one slot.
     #   1) Presence/absence — required by the case or not? Match exact text
     #      is too brittle (model paraphrases every time), so only presence.
+    #      Pass `null` (or omit) to skip the presence check entirely — useful
+    #      for borderline cases where either empty or non-empty is defensible.
     #   2) Optional forbidden-substring check — if the case declares
     #      `expected_action_items_forbidden_substrings`, fail if any action
     #      item contains any of those substrings (case-insensitive). Used to
     #      catch content-level bugs like an action item parroting an absurd
     #      premise from the input ("match historical standards from 1000
     #      years ago"). Presence checks alone miss this.
-    expected_required: bool = case.get("expected_action_items_required", False)
+    expected_required: bool | None = case.get("expected_action_items_required")
     actual_has = len(result.action_items) > 0
-    presence_pass = expected_required == actual_has
+    presence_pass = True if expected_required is None else expected_required == actual_has
     forbidden: list[str] = case.get(
         "expected_action_items_forbidden_substrings", []
     )
