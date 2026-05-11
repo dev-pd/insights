@@ -81,15 +81,12 @@ Sub-routers organized under `app/api/__init__.py`: `v1_router` gets `prefix="/v1
 
 Response: `{ items: [...], total: N, extracted: E, skipped: S, failed: F }` where `total = extracted + skipped + failed`.
 
-In Phase 4 each text dispatches to Celery; the endpoint returns immediately with `processing` rows and SSE streams completion. `FeedbackService.create_feedback_batch` is the dispatch boundary — body changes, signature doesn't.
+Each text dispatches to Celery; the endpoint returns immediately with `processing` rows and SSE streams completion. `FeedbackService.create_feedback_batch` is the dispatch boundary — body changes, signature doesn't.
 
 ### Stats schema
 
-`GET /v1/stats` returns a `StatsOut` shaped for the 6-KPI dashboard. Notable bits:
-- `positive_pct`, `negative_pct` are `0.0` when `total_extracted == 0` (avoids div-by-zero on empty dashboard).
-- `weekly_delta.delta_pct` is `null` when `last_week_count == 0` so the UI renders `-` instead of infinity.
-- `weekly_delta` windows anchor on `now` (UTC), not midnight, so live submissions appear immediately.
-- `top_themes` and `sentiment_trend` are tunable via `stats_theme_window_days` / `stats_top_themes_limit` / `stats_trend_days` Settings.
+`GET /v1/stats` returns `StatsOut` shaped for the 6-KPI dashboard. Two non-obvious choices:
+- `today_delta.delta_pct` is `null` when `yesterday_count == 0` so the UI renders `-` instead of infinity. Day-over-day windows anchor on `now` (UTC), not midnight, so live submissions appear immediately.
 - `count_in_window` uses half-open intervals `[start, end)` so back-to-back windows don't double-count the boundary instant.
 
 ### Summary endpoints
@@ -128,21 +125,7 @@ If a value could vary, repeat, or change with environment, it does NOT live inli
 | Repeated string literals (tool names, log event names) | Module-level `UPPER_SNAKE_CASE` in the owning file |
 | API contract constraints (Pydantic `Field(min_length=, ...)`) | **Stay inline** in schemas — they define the contract |
 
-### Currently defined Settings (May 2026)
-
-For reference when wiring new code — pick the existing field, don't redefine:
-
-- **External:** `anthropic_api_key`, `database_url`, `db_pool_size`, `db_max_overflow`, `redis_url`, `redis_max_connections`, `redis_socket_connect_timeout_seconds`
-- **LLM:** `llm_model`, `llm_max_tokens`, `llm_timeout_seconds`, `llm_max_retries`, `llm_retry_base_delay_seconds`, `llm_concurrency_limit`
-- **Celery retries:** `celery_extract_max_retries` (default 6), `celery_extract_retry_backoff_max` (default 120) — sized to absorb a multi-minute Anthropic 429 burst
-- **Validation:** `feedback_min_length`, `feedback_max_length`, `feedback_min_alpha_ratio`
-- **API limits:** `feedback_request_max_length`, `feedback_list_default_limit`
-- **Stats:** `stats_trend_days`, `stats_theme_window_days`, `stats_top_themes_limit`
-- **Summary:** `summary_cache_ttl_seconds`, `summary_min_feedback_items`
-- **SSE:** `sse_poll_interval_seconds`, `sse_max_stream_duration_minutes`, `sse_heartbeat_interval_seconds`
-- **Stress test:** `stress_test_max_count` (default 200 — hard cap so a typo can't burn real budget)
-
-Workflow for a new tunable: add field to Settings → add env var to `backend/.env.example` with matching default → read via `get_settings().<field>` (never `os.environ` directly). No backstop module constant.
+Workflow for a new tunable: add field to `app/core/config.py:Settings` → add env var to `backend/.env.example` with matching default → read via `get_settings().<field>` (never `os.environ` directly). The Settings class is the source of truth for what exists and what defaults are; don't duplicate it here.
 
 ## Structured logging
 
@@ -162,19 +145,9 @@ Required fields by event:
 
 ## Custom exceptions
 
-Hierarchy in `app/exceptions.py`:
+`app/exceptions.py` is the hierarchy. `AppError` is the base; subclasses set `status_code` as a class attribute that `app_error_handler` reads. `SQLAlchemyError` subclasses get translated to `DatabaseError` (503) before the JSON envelope is built.
 
-```
-AppError
-├── InputValidationError
-├── LLMError
-│   ├── LLMTimeoutError
-│   ├── LLMValidationError
-│   └── LLMRateLimitError
-└── DatabaseError
-```
-
-Status mapping in middleware: `InputValidationError → 400`, `LLMError → 502`, `DatabaseError → 503`, else 500. `SQLAlchemyError` subclasses get translated to `DatabaseError` before mapping. Layered handling: LLM client catches transient errors and retries → service catches `LLMError` and marks rows failed → global exception handler shapes the rest into `{error, detail, request_id}` JSON.
+Layered handling: LLM client catches transient errors and retries → service catches `LLMError` and marks rows failed → global exception handler shapes the rest into `{error, message, request_id}` JSON.
 
 ## Database
 
@@ -192,20 +165,12 @@ Status mapping in middleware: `InputValidationError → 400`, `LLMError → 502`
 
 ## Async processing
 
-Feedback extraction runs through Celery. `POST /v1/feedback/batch` persists rows as `processing` then dispatches; worker picks up task, extracts, updates row, publishes to Redis pub/sub for the SSE stream.
+Feedback extraction runs through Celery. `POST /v1/feedback/batch` persists rows as `processing` then dispatches; worker picks up task, extracts, updates row, publishes to Redis pub/sub for the SSE stream. Worker config and retry policy live in `app/tasks/celery_app.py` (read the file).
 
 Redis topology (one instance, three logical DBs):
 - `db 0` — summary cache + pub/sub channels (`events:feedback_update`, `events:stats_invalidate`)
 - `db 1` — Celery broker
 - `db 2` — Celery result backend
-
-Worker config in `app/tasks/celery_app.py`:
-- `task_acks_late=True` + `task_reject_on_worker_lost=True` — crashed workers requeue mid-task
-- `worker_prefetch_multiplier=1` — fair distribution
-- JSON-only serialization
-- `task_soft_time_limit` / `task_time_limit` from Settings
-
-Retry policy on `extract_feedback_task`: `autoretry_for=(LLMError, TimeoutError, ConnectionError)`, exponential backoff with jitter, budget from Settings (default 6 retries × 120s backoff_max).
 
 Beat schedule: `regenerate-summary-hourly` at :00 keeps the dashboard summary cache warm.
 
@@ -219,7 +184,7 @@ Workers use sync redis (`publish_feedback_event_sync`); SSE endpoint uses async 
 
 ## Testing
 
-`backend/tests/` with pytest + pytest-asyncio. Fixtures (mocked LLM client, test DB session, parameterized invalid/valid texts) in `conftest.py`. LLM calls always mocked — no real API calls in tests. Test names describe behavior (`test_too_short_input_is_skipped`), not implementation. Coverage target: meaningful tests on critical paths, not 100%.
+`backend/tests/` with pytest + pytest-asyncio. Run from `backend/` with `uv run pytest`. The image ships venv binaries only — `docker compose run backend pytest` won't find pytest. Coverage is intentionally narrow (the validator's noise rule is the only Tier-1 test today); the eval harness covers the LLM behavior layer.
 
 ## Gotchas
 
