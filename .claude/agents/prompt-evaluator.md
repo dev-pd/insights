@@ -23,12 +23,14 @@ When invoked, you will:
 
 The eval harness lives at `backend/evals/run_evals.py`. The harness module imports `app.llm.extract` which requires `ANTHROPIC_API_KEY` and other runtime config from the backend's `.env`.
 
-**Inside docker-compose** (the only way to run this from inside the repo with `.env` loaded automatically): use a one-off backend container with `backend/evals/` mounted in:
+**Inside docker-compose** (the only way to run this from inside the repo with `.env` loaded automatically): use a one-off backend container with `backend/evals/` mounted in. The mount is read-write (NOT `:ro`) so the report-path output can be persisted back to the host:
 
 ```bash
 docker compose run --rm \
-  -v "$(pwd)/backend/evals:/app/evals:ro" \
-  backend python /app/evals/run_evals.py --json --check
+  -v "$(pwd)/backend/evals:/app/evals" \
+  backend python /app/evals/run_evals.py \
+  --json --check \
+  --report-path /app/evals/reports/AUTO
 ```
 
 Use Bash `timeout: 300000` (5 min) — the run is ~20-30s on Haiku but the
@@ -37,7 +39,10 @@ docker compose plumbing adds latency.
 Flags:
 - `--json` — emit machine-readable report to stdout (always use this)
 - `--check` — compare metrics against baseline.json thresholds (always use this)
+- `--report-path /app/evals/reports/AUTO` — persist the JSON report to a timestamped file (resolves to `<UTC-ISO>-<prompt-version>.json` inside `evals/reports/`). Gives the human a permanent record of this run alongside your stdout summary. **Always use this** so the iteration trail is auditable.
 - `--limit N` — for fast iteration during dev. **Do not pass `--limit` on a real eval run** — you'd be reporting a partial picture.
+
+After the harness finishes, mention the saved report path in your final summary so the caller knows where to find the raw artifact.
 
 Exit codes:
 - 0 → all metrics ≥ thresholds (PASS)

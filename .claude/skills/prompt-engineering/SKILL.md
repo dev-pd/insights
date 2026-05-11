@@ -15,10 +15,11 @@ backend/app/llm/prompts/
 └── summary/              __init__.py + v1.py, v1_1.py, v1_2.py (ACTIVE)
 
 backend/evals/
-├── golden/extraction.jsonl    20 hand-curated test cases
-├── run_evals.py               Async harness (JSON + --check)
+├── golden/extraction.jsonl    Hand-curated test cases (~40)
+├── run_evals.py               Async harness (JSON + --check + --report-path)
 ├── baseline.json              Thresholds + last-observed metrics
-└── explore_edges.py           Ad-hoc probe (no grading)
+├── explore_edges.py           Ad-hoc probe (no grading)
+└── reports/                   Persisted JSON reports per run (`<UTC>-<version>.json`)
 
 .claude/agents/prompt-evaluator.md   Sub-agent that runs the harness
 .github/workflows/evals.yml          CI gate (triggers on prompts/ or evals/ PRs)
@@ -32,7 +33,7 @@ Only `extraction/` has a golden set today. `summary/` is verified qualitatively 
 2. **Add/update a golden** capturing the failure BEFORE editing the prompt. Makes the fix measurable and prevents future regressions.
 3. **Create a new version file** (`extraction/v1_3.py`). DO NOT edit a previous version — they're immutable so production traces stay reproducible. Set `VERSION = "extraction/v1.3"`. Copy the previous prompt, make the targeted change.
 4. **Point ACTIVE** at the new version in `extraction/__init__.py` (two lines: `ACTIVE_PROMPT`, `ACTIVE_VERSION`).
-5. **Rebuild + eval.** `docker compose build backend` (image bakes the prompt), then run the harness via `docker compose run --rm -v "$(pwd)/backend/evals:/app/evals:ro" backend python /app/evals/run_evals.py` — or invoke the `prompt-evaluator` sub-agent.
+5. **Rebuild + eval.** `docker compose build backend` (image bakes the prompt), then either invoke the `prompt-evaluator` sub-agent (preferred — it auto-saves the JSON report to `evals/reports/<UTC>-<version>.json` via `--report-path /app/evals/reports/AUTO`) or run the harness directly: `docker compose run --rm -v "$(pwd)/backend/evals:/app/evals" backend python /app/evals/run_evals.py --report-path /app/evals/reports/AUTO`. Persisted reports are the iteration audit trail — committed alongside prompt changes so `git log` shows what each version actually scored.
 6. **Analyze.** Did the targeted metric improve? Anything regress? If improved → commit everything together (see below). If regressed → revert ACTIVE in `__init__.py`, iterate on the new version file in place (it's not committed yet, so still mutable) or scrap and bump.
 
 ## What "commit everything together" means

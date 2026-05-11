@@ -37,6 +37,7 @@ import os
 import sys
 import time
 from collections.abc import Iterable
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -308,6 +309,18 @@ def _check_against_baseline(
     return 0
 
 
+def _resolve_report_path(report_path: Path, prompt_version: str) -> Path:
+    """If the filename component is `AUTO`, substitute it with a stable
+    timestamped name `<UTC-ISO>-<prompt-version>.json` so reports from
+    multiple runs don't collide and the filename encodes which prompt
+    version was tested. Any other path is used as-is."""
+    if report_path.name == "AUTO":
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        safe_version = prompt_version.replace("/", "-")
+        return report_path.parent / f"{timestamp}-{safe_version}.json"
+    return report_path
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="Emit JSON report to stdout.")
@@ -323,6 +336,17 @@ def main() -> int:
         type=int,
         default=None,
         help="Run only the first N cases. Useful for fast dev iteration.",
+    )
+    parser.add_argument(
+        "--report-path",
+        type=Path,
+        default=None,
+        help=(
+            "If set, also write the JSON report to this path. If the filename "
+            "is literally `AUTO`, substitute with `<UTC-ISO>-<prompt-version>.json` "
+            "in the same directory (e.g., `evals/reports/AUTO`). Parent dirs are "
+            "created if missing. Independent of --json (which controls stdout)."
+        ),
     )
     args = parser.parse_args()
 
@@ -355,6 +379,13 @@ def main() -> int:
         print(json.dumps(report, indent=2))
     else:
         _print_human_readable(report)
+
+    if args.report_path is not None:
+        resolved = _resolve_report_path(args.report_path, ACTIVE_VERSION)
+        resolved.parent.mkdir(parents=True, exist_ok=True)
+        with resolved.open("w") as fh:
+            json.dump(report, fh, indent=2)
+        print(f"\n  report saved → {resolved}", file=sys.stderr)
 
     if args.check:
         return _check_against_baseline(report, args.baseline_path)
