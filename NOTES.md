@@ -2,14 +2,15 @@
 
 ## Context-engineering decisions I'm proudest of
 
-**1. Scoped memory, not one giant CLAUDE.md.** Root `CLAUDE.md` points
-at scoped files. Real conventions live in `backend/CLAUDE.md` and
-`frontend/CLAUDE.md`, auto-loaded only when Claude reads files in that
-directory. The `prompt-engineering` skill carries the iteration workflow
-and loads on invoke. Deleted two intermediate skills mid-project once
-content drifted toward generic patterns or duplicated CLAUDE.md — a
-skill earns its slot only when content is project-specific AND not
-derivable from auto-loaded CLAUDE.md.
+**1. Scoped memory, not one giant CLAUDE.md.** Root `CLAUDE.md` stays
+short — it imports `@.claude/context/architecture.md` for system shape
+and points at two stack files. Real conventions live in
+`backend/CLAUDE.md` and `frontend/CLAUDE.md`, auto-loaded only when
+Claude reads files in those directories. The prompt-iteration workflow
+lives in the `prompt-engineering` skill and loads on invoke, not per
+turn. Net effect: any given turn, Claude sees only the context relevant
+to the files in play — backend gotchas don't blow tokens on a frontend
+edit, the eval workflow doesn't blow tokens on a docs read.
 
 **2. A two-agent prompt-iteration loop with a baseline gate.**
 `edge-case-generator` proposes JSONL candidates for gaps;
