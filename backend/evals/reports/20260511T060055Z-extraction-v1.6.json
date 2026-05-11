@@ -1,0 +1,2276 @@
+{
+  "prompt_version": "extraction/v1.6",
+  "model": "claude-haiku-4-5",
+  "n_cases": 53,
+  "elapsed_seconds": 101.8,
+  "metrics": {
+    "sentiment_accuracy": 0.981,
+    "theme_subset_pass_rate": 1.0,
+    "theme_count_pass_rate": 0.981,
+    "action_items_pass_rate": 0.981,
+    "language_accuracy": 0.981,
+    "overall_pass_rate": 0.981
+  },
+  "cases": [
+    {
+      "id": "shipping-positive",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "positive",
+          "actual": "positive",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "shipping"
+          ],
+          "actual_themes": [
+            "shipping",
+            "product quality"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": false,
+          "actual_count": 0,
+          "actual_items": [],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1147,
+      "input_tokens": 2508,
+      "output_tokens": 92
+    },
+    {
+      "id": "app-crash-action",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "upload"
+          ],
+          "actual_themes": [
+            "photo upload"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 1,
+          "actual_items": [
+            "fix app crashes when uploading photos larger than 5MB"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1129,
+      "input_tokens": 2518,
+      "output_tokens": 102
+    },
+    {
+      "id": "pricing-confusion",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "pricing"
+          ],
+          "actual_themes": [
+            "pricing"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 1,
+          "actual_items": [
+            "clarify feature differences between standard and pro pricing tiers"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1033,
+      "input_tokens": 2512,
+      "output_tokens": 100
+    },
+    {
+      "id": "mixed-positive-with-suggestion",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "positive",
+          "actual": "positive",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "dashboard"
+          ],
+          "actual_themes": [
+            "dashboard"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 1,
+          "actual_items": [
+            "add date range filtering to dashboard"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1008,
+      "input_tokens": 2515,
+      "output_tokens": 95
+    },
+    {
+      "id": "terse-praise",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "positive",
+          "actual": "positive",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": []
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 0,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": false,
+          "actual_count": 0,
+          "actual_items": [],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 808,
+      "input_tokens": 2495,
+      "output_tokens": 67
+    },
+    {
+      "id": "multi-theme-bug",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "shipping",
+            "support"
+          ],
+          "actual_themes": [
+            "shipping",
+            "support",
+            "product quality"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 3,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 3,
+          "actual_items": [
+            "improve shipping speed",
+            "improve support response time",
+            "improve product packaging to prevent damage"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1180,
+      "input_tokens": 2515,
+      "output_tokens": 113
+    },
+    {
+      "id": "mobile-android-issue",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "login"
+          ],
+          "actual_themes": [
+            "login",
+            "android"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "fix login redirect loop on android 14",
+            "test login flow on android 14 devices"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1141,
+      "input_tokens": 2514,
+      "output_tokens": 111
+    },
+    {
+      "id": "payment-failure",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "payment"
+          ],
+          "actual_themes": [
+            "payment processing"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "improve payment error messages to provide specific troubleshooting guidance",
+            "investigate and fix payment processing failures when card balance is sufficient"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 2458,
+      "input_tokens": 2514,
+      "output_tokens": 115
+    },
+    {
+      "id": "feature-request",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "neutral",
+          "actual": "neutral",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": [
+            "keyboard shortcuts"
+          ]
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 1,
+          "actual_items": [
+            "add keyboard shortcuts for common actions"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1231,
+      "input_tokens": 2508,
+      "output_tokens": 96
+    },
+    {
+      "id": "slow-support",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "support"
+          ],
+          "actual_themes": [
+            "support"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "improve support response time",
+            "establish and meet support response SLAs"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1226,
+      "input_tokens": 2517,
+      "output_tokens": 103
+    },
+    {
+      "id": "dark-mode-suggestion",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "neutral",
+          "actual": "neutral",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": [
+            "dark mode"
+          ]
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 1,
+          "actual_items": [
+            "add dark mode toggle"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 935,
+      "input_tokens": 2508,
+      "output_tokens": 94
+    },
+    {
+      "id": "csv-import-bug",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "csv"
+          ],
+          "actual_themes": [
+            "CSV import"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "fix CSV import to handle trailing commas without silent failure",
+            "add error messaging when CSV import fails"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1112,
+      "input_tokens": 2515,
+      "output_tokens": 110
+    },
+    {
+      "id": "refund-request",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "refund"
+          ],
+          "actual_themes": [
+            "product description",
+            "refund"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "improve product description accuracy",
+            "streamline refund processing"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1085,
+      "input_tokens": 2519,
+      "output_tokens": 105
+    },
+    {
+      "id": "compliment-quality",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "positive",
+          "actual": "positive",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "quality"
+          ],
+          "actual_themes": [
+            "quality"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": false,
+          "actual_count": 0,
+          "actual_items": [],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 961,
+      "input_tokens": 2509,
+      "output_tokens": 88
+    },
+    {
+      "id": "pure-praise-no-asks",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "positive",
+          "actual": "positive",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": []
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 0,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": false,
+          "actual_count": 0,
+          "actual_items": [],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 891,
+      "input_tokens": 2502,
+      "output_tokens": 86
+    },
+    {
+      "id": "feature-request-enthusiastic",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "neutral",
+          "actual": "neutral",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": [
+            "dark mode"
+          ]
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 1,
+          "actual_items": [
+            "add dark mode"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1127,
+      "input_tokens": 2496,
+      "output_tokens": 93
+    },
+    {
+      "id": "resolved-past-tense",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "positive",
+          "actual": "positive",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "billing"
+          ],
+          "actual_themes": [
+            "billing",
+            "support"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": false,
+          "actual_count": 0,
+          "actual_items": [],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 882,
+      "input_tokens": 2502,
+      "output_tokens": 91
+    },
+    {
+      "id": "mixed-with-blocker",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "checkout"
+          ],
+          "actual_themes": [
+            "checkout",
+            "ui"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 1,
+          "actual_items": [
+            "fix checkout payment functionality"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1022,
+      "input_tokens": 2502,
+      "output_tokens": 96
+    },
+    {
+      "id": "sarcasm-praise",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": [
+            "data loss"
+          ]
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "prevent data loss",
+            "improve data protection"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 962,
+      "input_tokens": 2505,
+      "output_tokens": 98
+    },
+    {
+      "id": "competitor-mention",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "positive",
+          "actual": "positive",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "pricing"
+          ],
+          "actual_themes": [
+            "pricing",
+            "onboarding"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": false,
+          "actual_count": 0,
+          "actual_items": [],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 924,
+      "input_tokens": 2509,
+      "output_tokens": 93
+    },
+    {
+      "id": "technical-noise-bug",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": [
+            "draft saving"
+          ]
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "fix TypeError when saving drafts",
+            "ensure draft save functionality handles undefined id property"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1196,
+      "input_tokens": 2508,
+      "output_tokens": 106
+    },
+    {
+      "id": "unresolved-past-tense",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": [
+            "dashboard",
+            "app stability"
+          ]
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "fix dashboard freezing issue",
+            "investigate app performance on dashboard load"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1506,
+      "input_tokens": 2502,
+      "output_tokens": 106
+    },
+    {
+      "id": "question-not-feedback",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "neutral",
+          "actual": "neutral",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": [
+            "dashboard"
+          ]
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": false,
+          "actual_count": 0,
+          "actual_items": [],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 803,
+      "input_tokens": 2500,
+      "output_tokens": 69
+    },
+    {
+      "id": "vague-gripe",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": []
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 0,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": false,
+          "actual_count": 0,
+          "actual_items": [],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 901,
+      "input_tokens": 2504,
+      "output_tokens": 86
+    },
+    {
+      "id": "french-feature-request",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "neutral",
+          "actual": "neutral",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "export"
+          ],
+          "actual_themes": [
+            "csv export"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 1,
+          "actual_items": [
+            "add csv export functionality"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "fr",
+          "actual": "fr",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1000,
+      "input_tokens": 2534,
+      "output_tokens": 94
+    },
+    {
+      "id": "spanglish-mixed",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "checkout"
+          ],
+          "actual_themes": [
+            "checkout",
+            "payment"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "fix checkout error 500 that prevents payment processing",
+            "investigate and resolve payment system failures"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "es",
+          "actual": "es",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1239,
+      "input_tokens": 2516,
+      "output_tokens": 110
+    },
+    {
+      "id": "privacy-data-deletion",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": [
+            "account deletion",
+            "data privacy"
+          ]
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "confirm account deletion requests within GDPR timeframe",
+            "send deletion confirmation to users"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1271,
+      "input_tokens": 2512,
+      "output_tokens": 111
+    },
+    {
+      "id": "url-laden-bug",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": [
+            "newsletter",
+            "broken link"
+          ]
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "fix broken newsletter link to promo page",
+            "ensure newsletter links are tested before sending"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1254,
+      "input_tokens": 2525,
+      "output_tokens": 110
+    },
+    {
+      "id": "verbose-multi-paragraph",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "mobile"
+          ],
+          "actual_themes": [
+            "mobile app",
+            "email digest"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "fix iPad landscape mode chart rendering to display full width including legend",
+            "fix email digest delivery time to respect user-set preferences"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1172,
+      "input_tokens": 2621,
+      "output_tokens": 119
+    },
+    {
+      "id": "theme-synonym-collapse",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "support"
+          ],
+          "actual_themes": [
+            "support"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 2,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "improve support staff training to resolve issues without transfers",
+            "reduce customer transfers between support team members"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1289,
+      "input_tokens": 2514,
+      "output_tokens": 107
+    },
+    {
+      "id": "polite-request-german",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "neutral",
+          "actual": "neutral",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": [
+            "dark mode"
+          ]
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 1,
+          "actual_items": [
+            "add dark mode option to user interface"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "de",
+          "actual": "de",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1051,
+      "input_tokens": 2531,
+      "output_tokens": 97
+    },
+    {
+      "id": "sentiment-formal-complaint",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": [
+            "subscription renewal",
+            "support"
+          ]
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "fix recurring delays in subscription renewal processing",
+            "implement automated renewal system to prevent manual intervention"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1468,
+      "input_tokens": 2541,
+      "output_tokens": 110
+    },
+    {
+      "id": "sentiment-ratio-trap",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "export"
+          ],
+          "actual_themes": [
+            "data exports"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 1,
+          "actual_items": [
+            "fix data export functionality"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 3173,
+      "input_tokens": 2534,
+      "output_tokens": 94
+    },
+    {
+      "id": "sentiment-issue-fixed-then-recurred",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "login"
+          ],
+          "actual_themes": [
+            "login",
+            "ios"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 1,
+          "actual_items": [
+            "fix login bug on safari ios"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 3205,
+      "input_tokens": 2524,
+      "output_tokens": 98
+    },
+    {
+      "id": "actions-implicit-no-action",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "neutral",
+          "actual": "neutral",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "search"
+          ],
+          "actual_themes": [
+            "search performance"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 2,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": false,
+          "actual_count": 0,
+          "actual_items": [],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 889,
+      "input_tokens": 2514,
+      "output_tokens": 70
+    },
+    {
+      "id": "sentiment-polite-intensifier",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "neutral",
+          "actual": "neutral",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "report"
+          ],
+          "actual_themes": [
+            "reports"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 2,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 1,
+          "actual_items": [
+            "add year-over-year comparison functionality to reports section"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 3130,
+      "input_tokens": 2522,
+      "output_tokens": 100
+    },
+    {
+      "id": "themes-one-topic-only",
+      "all_pass": false,
+      "error": {
+        "type": "LLMRateLimitError",
+        "message": "Error code: 429 - {'type': 'error', 'error': {'type': 'rate_limit_error', 'message': \"This request would exceed your organization's rate limit of 50,000 input tokens per minute (org: 078faa4a-0b6e-4ac7-b62e-d6751f5a017d, model: claude-haiku-4-5-20251001). For details, refer to: https://docs.claude.com/en/api/rate-limits. You can see the response headers for current usage. Please reduce the prompt length or the maximum tokens requested, or try again later. You may also contact sales at https://claude.com/contact-sales to discuss your options for a rate limit increase.\"}, 'request_id': 'req_011CavGfujJPGaEhr2jgnQUT'}"
+      },
+      "checks": {}
+    },
+    {
+      "id": "sentiment-informational-no-valence",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "neutral",
+          "actual": "neutral",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": [
+            "onboarding",
+            "batch processing"
+          ]
+        },
+        "themes_count": {
+          "max": 2,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": false,
+          "actual_count": 0,
+          "actual_items": [],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 3305,
+      "input_tokens": 2517,
+      "output_tokens": 75
+    },
+    {
+      "id": "themes-one-topic-search-ui",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "search"
+          ],
+          "actual_themes": [
+            "search autocomplete"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 1,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 3,
+          "actual_items": [
+            "improve autocomplete response speed",
+            "fix suggestion relevance to user input",
+            "fix dropdown closing behavior after selection"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1451,
+      "input_tokens": 2535,
+      "output_tokens": 113
+    },
+    {
+      "id": "actions-no-hallucination-praise",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "positive",
+          "actual": "positive",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "export"
+          ],
+          "actual_themes": [
+            "batch export"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 2,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": false,
+          "actual_count": 0,
+          "actual_items": [],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 3050,
+      "input_tokens": 2528,
+      "output_tokens": 70
+    },
+    {
+      "id": "sentiment-subtle-sarcasm",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": [
+            "session timeout"
+          ]
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 3,
+          "actual_items": [
+            "increase session timeout duration or allow users to configure it",
+            "add warning before automatic logout",
+            "preserve form data when session expires"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 3704,
+      "input_tokens": 2523,
+      "output_tokens": 115
+    },
+    {
+      "id": "themes-onboarding-synonym-collapse",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "onboarding"
+          ],
+          "actual_themes": [
+            "onboarding"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 1,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 3,
+          "actual_items": [
+            "improve clarity and completeness of the getting-started guide",
+            "expand the setup wizard to include all necessary steps",
+            "enhance the welcome tutorial to explain core workflow"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 3635,
+      "input_tokens": 2528,
+      "output_tokens": 123
+    },
+    {
+      "id": "language-japanese",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": [
+            "dashboard performance"
+          ]
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "improve dashboard loading speed",
+            "reduce dashboard load time to under 10 seconds"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "ja",
+          "actual": "ja",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 3727,
+      "input_tokens": 2541,
+      "output_tokens": 106
+    },
+    {
+      "id": "sentiment-neutral-multi-sentence-question",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "neutral",
+          "actual": "neutral",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": [
+            "webhook retries"
+          ]
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": false,
+          "actual_count": 0,
+          "actual_items": [],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 847,
+      "input_tokens": 2530,
+      "output_tokens": 71
+    },
+    {
+      "id": "sentiment-praise-then-new-request",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "neutral",
+          "actual": "neutral",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "report"
+          ],
+          "actual_themes": [
+            "reporting",
+            "email delivery"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 2,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 1,
+          "actual_items": [
+            "add scheduled automated report delivery via email"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 3287,
+      "input_tokens": 2534,
+      "output_tokens": 100
+    },
+    {
+      "id": "sentiment-allcaps-rage",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "account",
+            "support"
+          ],
+          "actual_themes": [
+            "account access",
+            "support"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "resolve account lockout immediately",
+            "improve support response time"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 3321,
+      "input_tokens": 2535,
+      "output_tokens": 104
+    },
+    {
+      "id": "markup-emoji-mixed",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "positive",
+          "actual": "positive",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "report"
+          ],
+          "actual_themes": [
+            "dashboard",
+            "reports"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 1,
+          "actual_items": [
+            "add ability to pin top reports"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 3351,
+      "input_tokens": 2543,
+      "output_tokens": 98
+    },
+    {
+      "id": "language-arabic-complaint",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": [
+            "app crashes",
+            "settings"
+          ]
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "fix app crashes when opening settings",
+            "prioritize stability of settings feature"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "ar",
+          "actual": "ar",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 3562,
+      "input_tokens": 2545,
+      "output_tokens": 107
+    },
+    {
+      "id": "codeswitching-low-density",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "dashboard"
+          ],
+          "actual_themes": [
+            "dashboard",
+            "analytics"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 2,
+          "actual": 2,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 2,
+          "actual_items": [
+            "fix dashboard loading issue when viewing weekly analytics",
+            "investigate infinite loading state on analytics pages"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "es",
+          "actual": "es",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 3521,
+      "input_tokens": 2535,
+      "output_tokens": 109
+    },
+    {
+      "id": "themes-api-synonym-collapse",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "rate limit"
+          ],
+          "actual_themes": [
+            "rate limit"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 1,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 3,
+          "actual_items": [
+            "increase rate limit quota",
+            "allow quota reset or higher daily allowance",
+            "provide tiered rate limit options for high-volume users"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 1939,
+      "input_tokens": 2528,
+      "output_tokens": 117
+    },
+    {
+      "id": "sentiment-works-as-expected",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "neutral",
+          "actual": "neutral",
+          "pass": true
+        },
+        "themes_subset": {
+          "skipped": true,
+          "actual_themes": []
+        },
+        "themes_count": {
+          "max": 2,
+          "actual": 0,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": false,
+          "actual_count": 0,
+          "actual_items": [],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 3303,
+      "input_tokens": 2498,
+      "output_tokens": 86
+    },
+    {
+      "id": "actions-rhetorical-question",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "export"
+          ],
+          "actual_themes": [
+            "export"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 2,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 1,
+          "actual_items": [
+            "fix export button functionality"
+          ],
+          "forbidden_substrings": [],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 3144,
+      "input_tokens": 2512,
+      "output_tokens": 93
+    },
+    {
+      "id": "absurd-historic-frame",
+      "all_pass": true,
+      "checks": {
+        "sentiment": {
+          "expected": "negative",
+          "actual": "negative",
+          "pass": true
+        },
+        "themes_subset": {
+          "expected_subset": [
+            "quality"
+          ],
+          "actual_themes": [
+            "product quality"
+          ],
+          "pass": true
+        },
+        "themes_count": {
+          "max": 3,
+          "actual": 1,
+          "pass": true
+        },
+        "action_items": {
+          "expected_required": true,
+          "actual_count": 1,
+          "actual_items": [
+            "improve product quality"
+          ],
+          "forbidden_substrings": [
+            "historical",
+            "1000",
+            "ancient",
+            "centur",
+            "millenni"
+          ],
+          "forbidden_hit": null,
+          "pass": true
+        },
+        "language": {
+          "expected": "en",
+          "actual": "en",
+          "pass": true
+        }
+      },
+      "model": "claude-haiku-4-5-20251001",
+      "latency_ms": 3267,
+      "input_tokens": 2502,
+      "output_tokens": 93
+    }
+  ]
+}

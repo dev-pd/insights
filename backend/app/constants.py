@@ -23,10 +23,11 @@ class SkipReason(StrEnum):
     # attempts ("ignore previous instructions", "reveal your prompt").
     # Rejected at the validator so the LLM never sees the payload.
     PROMPT_INJECTION = "prompt_injection"
-    # Implausible time framings ("1000 yrs ago", "centuries ago") in
-    # product feedback. Caught upstream so the LLM doesn't burn a call
-    # producing a debatable sentiment label on inputs that are noise.
-    NONSENSICAL_TIMEFRAME = "nonsensical_timeframe"
+    # The LLM itself flagged the feedback as noise (impossible timeframes,
+    # pure fiction, gibberish) via the `is_noise=true` schema field. The
+    # worker maps this to a skipped row so the dashboard doesn't count
+    # nonsense as real customer signal.
+    NOISE = "noise"
 
 
 class LlmCallType(StrEnum):

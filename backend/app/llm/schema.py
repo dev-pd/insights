@@ -40,3 +40,16 @@ class ExtractionResult(BaseModel):
         min_length=2,
         max_length=5,
     )
+    is_noise: bool = Field(
+        default=False,
+        description=(
+            "Set to true ONLY when the feedback is clearly nonsensical and "
+            "contains no real underlying signal — impossible timeframes "
+            "given the product launched in 2020 ('worked 1000 years ago', "
+            "'centuries ago'), pure fiction with no actual product complaint, "
+            "or gibberish-with-words. When true, the worker marks the row "
+            "as skipped with skip_reason='noise' and the other fields are "
+            "ignored downstream. Default false — only flag obvious noise. "
+            "Real complaints with poetic / hyperbolic framing are NOT noise."
+        ),
+    )

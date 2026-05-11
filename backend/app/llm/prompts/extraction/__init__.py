@@ -21,10 +21,14 @@ from app.llm.prompts.extraction.v1_4 import PROMPT as V1_4_PROMPT
 from app.llm.prompts.extraction.v1_4 import VERSION as V1_4_VERSION
 from app.llm.prompts.extraction.v1_5 import PROMPT as V1_5_PROMPT
 from app.llm.prompts.extraction.v1_5 import VERSION as V1_5_VERSION
+from app.llm.prompts.extraction.v1_6 import PROMPT as V1_6_PROMPT
+from app.llm.prompts.extraction.v1_6 import VERSION as V1_6_VERSION
+from app.llm.prompts.extraction.v1_7 import PROMPT as V1_7_PROMPT
+from app.llm.prompts.extraction.v1_7 import VERSION as V1_7_VERSION
 
 # Single source of truth for "which version is live in production".
-ACTIVE_PROMPT = V1_5_PROMPT
-ACTIVE_VERSION = V1_5_VERSION
+ACTIVE_PROMPT = V1_7_PROMPT
+ACTIVE_VERSION = V1_7_VERSION
 
 __all__ = [
     "ACTIVE_PROMPT",
@@ -41,4 +45,8 @@ __all__ = [
     "V1_4_VERSION",
     "V1_5_PROMPT",
     "V1_5_VERSION",
+    "V1_6_PROMPT",
+    "V1_6_VERSION",
+    "V1_7_PROMPT",
+    "V1_7_VERSION",
 ]

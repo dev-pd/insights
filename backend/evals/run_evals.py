@@ -98,6 +98,28 @@ async def _evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
 
     checks: dict[str, dict[str, Any]] = {}
 
+    # is_noise check — runs FIRST. The model flags absurd / nonsense input
+    # via the is_noise schema field; the worker skips such rows downstream
+    # so the dashboard doesn't count them. When the golden expects noise,
+    # ONLY the is_noise check runs — the other field outputs are populated
+    # but downstream-ignored, so grading them adds noise to the metrics.
+    expected_is_noise: bool = case.get("expected_is_noise", False)
+    checks["is_noise"] = {
+        "expected": expected_is_noise,
+        "actual": result.is_noise,
+        "pass": result.is_noise == expected_is_noise,
+    }
+    if expected_is_noise:
+        return {
+            "id": case["id"],
+            "all_pass": checks["is_noise"]["pass"],
+            "checks": checks,
+            "model": metadata.get("model"),
+            "latency_ms": metadata.get("latency_ms"),
+            "input_tokens": metadata.get("input_tokens"),
+            "output_tokens": metadata.get("output_tokens"),
+        }
+
     # Sentiment — exact match.
     expected_sentiment = case["expected_sentiment"]
     checks["sentiment"] = {
@@ -201,37 +223,45 @@ def _aggregate(case_results: list[dict[str, Any]]) -> dict[str, Any]:
             return 0.0
         return round(numerator / denominator, 3)
 
-    sentiment_pass = sum(
-        1 for r in case_results if r["checks"].get("sentiment", {}).get("pass")
-    )
-    theme_count_pass = sum(
-        1 for r in case_results if r["checks"].get("themes_count", {}).get("pass")
-    )
-    action_items_pass = sum(
-        1 for r in case_results if r["checks"].get("action_items", {}).get("pass")
-    )
-    language_pass = sum(
-        1 for r in case_results if r["checks"].get("language", {}).get("pass")
-    )
+    # Per-field denominators count only cases that ran that check. Noise
+    # cases short-circuit after is_noise (the other fields aren't used
+    # downstream) so they shouldn't drag per-field rates down.
+    def _count(field: str) -> tuple[int, int]:
+        cases = [r for r in case_results if field in r["checks"]]
+        return (
+            sum(1 for r in cases if r["checks"][field].get("pass")),
+            len(cases),
+        )
+
+    sentiment_pass, sentiment_total = _count("sentiment")
+    theme_count_pass, theme_count_total = _count("themes_count")
+    action_items_pass, action_items_total = _count("action_items")
+    language_pass, language_total = _count("language")
+    is_noise_pass, is_noise_total = _count("is_noise")
     overall_pass = sum(1 for r in case_results if r["all_pass"])
 
     # Theme subset only over cases that have non-empty expected_themes_subset.
+    # Excludes LLMError cases (which carry an empty `checks: {}` so any per-key
+    # access would KeyError) — they're counted as overall failures but skipped
+    # in the per-metric rates, mirroring the .get() pattern used above.
     subset_cases = [
         r for r in case_results
-        if not r["checks"].get("themes_subset", {}).get("skipped")
+        if "themes_subset" in r["checks"]
+        and not r["checks"]["themes_subset"].get("skipped")
     ]
     subset_pass = sum(1 for r in subset_cases if r["checks"]["themes_subset"]["pass"])
 
     return {
-        "sentiment_accuracy": _rate(sentiment_pass, total),
+        "sentiment_accuracy": _rate(sentiment_pass, sentiment_total),
         "theme_subset_pass_rate": (
             _rate(subset_pass, len(subset_cases))
             if subset_cases
             else None
         ),
-        "theme_count_pass_rate": _rate(theme_count_pass, total),
-        "action_items_pass_rate": _rate(action_items_pass, total),
-        "language_accuracy": _rate(language_pass, total),
+        "theme_count_pass_rate": _rate(theme_count_pass, theme_count_total),
+        "action_items_pass_rate": _rate(action_items_pass, action_items_total),
+        "language_accuracy": _rate(language_pass, language_total),
+        "is_noise_accuracy": _rate(is_noise_pass, is_noise_total),
         "overall_pass_rate": _rate(overall_pass, total),
     }
 

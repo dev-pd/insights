@@ -140,6 +140,35 @@ async def _do_extraction(feedback_id: int) -> dict:
             feedback_id=feedback.id,
         )
 
+        # Noise skip: the LLM flagged the input as nonsense (impossible
+        # timeframes, fiction, gibberish-with-words) via the is_noise schema
+        # field. Mirrors the language!='en' skip below — same shape, different
+        # trigger. The other extracted fields are intentionally NOT persisted
+        # so the dashboard treats this as pure noise rather than partial signal.
+        if result.is_noise:
+            feedback.status = FeedbackStatus.SKIPPED.value
+            feedback.skip_reason = SkipReason.NOISE.value
+            feedback.language = result.language
+            feedback.llm_metadata = metadata
+            await session.commit()
+
+            publish_feedback_event_sync(
+                redis_client,
+                feedback_id=feedback_id,
+                status=FeedbackStatus.SKIPPED.value,
+                payload={
+                    "skip_reason": SkipReason.NOISE.value,
+                    "language": result.language,
+                },
+            )
+            publish_stats_invalidation_sync(redis_client)
+            return {
+                "feedback_id": feedback_id,
+                "status": FeedbackStatus.SKIPPED.value,
+                "skip_reason": SkipReason.NOISE.value,
+                "language": result.language,
+            }
+
         if result.language != "en":
             feedback.status = FeedbackStatus.SKIPPED.value
             feedback.skip_reason = SkipReason.NON_ENGLISH_UNSUPPORTED.value
