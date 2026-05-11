@@ -27,7 +27,7 @@ A POC for extracting structured insights from customer feedback using LLMs. Scop
 
 Stack-specific gotchas live in `backend/CLAUDE.md` and `frontend/CLAUDE.md`. These bite across both:
 
-- **Restart nginx after rebuilding any service it fronts.** nginx caches upstream container IPs at startup. Rebuilding `backend` or `frontend` gives them new IPs that nginx still resolves to the old ones → 502 Bad Gateway. Fix: `docker compose restart nginx` after `docker compose build <service> && up -d`.
+- **Restart nginx after rebuilding any service it fronts.** nginx caches upstream container IPs at startup. Any recreate of `backend` or `frontend` — including `docker compose up --build` (rebuilt services get new container IPs while nginx stays untouched) and `docker compose up -d --force-recreate <service>` — leaves nginx resolving to the dead IP → `502 Bad Gateway` on `/api/*` while the container itself is healthy. Fix: `docker compose restart nginx`. Symptom check: `docker compose ps` shows nginx significantly older than the just-rebuilt service.
 - **Destructive schema changes need `docker compose down -v`.** `Base.metadata.create_all()` only creates missing tables; it doesn't `ALTER`. Schema changes (column type, new required NOT NULL) require wiping the postgres volume so create_all rebuilds. Production graduation = Alembic.
 
 ## What lives elsewhere
