@@ -22,6 +22,9 @@ export default function Home() {
       onStatsInvalidate: () => {
         mutate(API_ROUTES.stats)
       },
+      onSummaryInvalidate: () => {
+        mutate(API_ROUTES.summary)
+      },
     },
     pendingCount > 0,
   )

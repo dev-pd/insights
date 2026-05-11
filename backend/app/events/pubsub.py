@@ -17,6 +17,7 @@ log = logging.getLogger(__name__)
 class EventChannel(StrEnum):
     FEEDBACK_UPDATE = "events:feedback_update"
     STATS_INVALIDATE = "events:stats_invalidate"
+    SUMMARY_INVALIDATE = "events:summary_invalidate"
 
 
 def _feedback_event(
@@ -36,6 +37,15 @@ def _stats_invalidation() -> str:
     return json.dumps(
         {
             "kind": "stats_invalidate",
+            "ts": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+
+
+def _summary_invalidation() -> str:
+    return json.dumps(
+        {
+            "kind": "summary_invalidate",
             "ts": datetime.now(timezone.utc).isoformat(),
         }
     )
@@ -70,6 +80,15 @@ async def publish_stats_invalidation(redis_client: redis_async.Redis) -> None:
         )
     except Exception as error:  # noqa: BLE001
         log.warning("stats_invalidation_failed", extra={"error": str(error)})
+
+
+async def publish_summary_invalidation(redis_client: redis_async.Redis) -> None:
+    try:
+        await redis_client.publish(
+            EventChannel.SUMMARY_INVALIDATE.value, _summary_invalidation()
+        )
+    except Exception as error:  # noqa: BLE001
+        log.warning("summary_invalidation_failed", extra={"error": str(error)})
 
 
 def publish_feedback_event_sync(

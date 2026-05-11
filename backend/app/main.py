@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -5,10 +6,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.api.deps import get_redis
 from app.api.health import router as ops_router
 from app.api.v1.router import v1_router
 from app.core.config import get_settings
 from app.db import Base, engine
+from app.events.summary_invalidator import run_summary_invalidator
 from app.exceptions import AppError
 from app.core.logging import configure_logging
 from app.middleware import (
@@ -33,11 +36,26 @@ async def lifespan(app: FastAPI):
     # Bootstrap schema on startup. Production graduation = Alembic.
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    redis_client = await get_redis()
+    invalidator_task = asyncio.create_task(
+        run_summary_invalidator(
+            redis_client, settings.summary_invalidation_debounce_seconds
+        ),
+        name="summary_invalidator",
+    )
     logger.info("app_started")
-    yield
-    logger.info("app_stopping")
-    await engine.dispose()
-    logger.info("app_stopped")
+    try:
+        yield
+    finally:
+        logger.info("app_stopping")
+        invalidator_task.cancel()
+        try:
+            await invalidator_task
+        except asyncio.CancelledError:
+            pass
+        await engine.dispose()
+        logger.info("app_stopped")
 
 
 settings = get_settings()

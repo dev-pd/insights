@@ -20,6 +20,7 @@ export interface FeedbackUpdateEvent {
 export interface FeedbackStreamHandlers {
   onFeedbackUpdate?: (event: FeedbackUpdateEvent) => void
   onStatsInvalidate?: () => void
+  onSummaryInvalidate?: () => void
   onConnected?: () => void
   onError?: (error: Event) => void
 }
@@ -59,6 +60,10 @@ export function useFeedbackStream(
       handlersRef.current.onStatsInvalidate?.()
     }
 
+    const onSummaryInvalidate = () => {
+      handlersRef.current.onSummaryInvalidate?.()
+    }
+
     const onError = (errorEvent: Event) => {
       handlersRef.current.onError?.(errorEvent)
     }
@@ -66,12 +71,14 @@ export function useFeedbackStream(
     eventSource.addEventListener("connected", onConnected)
     eventSource.addEventListener("feedback_update", onFeedbackUpdate)
     eventSource.addEventListener("stats_invalidate", onStatsInvalidate)
+    eventSource.addEventListener("summary_invalidate", onSummaryInvalidate)
     eventSource.addEventListener("error", onError)
 
     return () => {
       eventSource.removeEventListener("connected", onConnected)
       eventSource.removeEventListener("feedback_update", onFeedbackUpdate)
       eventSource.removeEventListener("stats_invalidate", onStatsInvalidate)
+      eventSource.removeEventListener("summary_invalidate", onSummaryInvalidate)
       eventSource.removeEventListener("error", onError)
       eventSource.close()
     }

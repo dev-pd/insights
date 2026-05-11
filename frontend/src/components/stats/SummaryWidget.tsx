@@ -1,7 +1,7 @@
 "use client"
 
 import { RefreshCwIcon, SparklesIcon } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import useSWR from "swr"
 
 import { Button } from "@/components/ui/button"
@@ -13,14 +13,21 @@ import {
 } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/useToast"
+import { useDashboardStats } from "@/hooks/useDashboardStats"
 import { apiClient, fetcher } from "@/lib/api/client"
 import { API_ROUTES } from "@/lib/api/routes"
 import type { Summary } from "@/lib/api/types"
+import { UI_TIMINGS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import { common } from "@/locales/en/common"
 import { stats as statsCopy } from "@/locales/en/stats"
 
 const MS_PER_MINUTE = 60_000
+// Re-render cadence for the "Updated Xm ago" label. Without this, the label
+// is computed once at fetch time — when `data.generated_at` doesn't change
+// (cache hit), React never re-renders and the label is frozen at the value
+// it had when the data first loaded (typically "just now").
+const TICK_INTERVAL_MS = 30_000
 
 function minutesSince(iso: string): number {
   return Math.floor((Date.now() - new Date(iso).getTime()) / MS_PER_MINUTE)
@@ -65,15 +72,36 @@ function WidgetHeader({ refreshing, onRefresh }: WidgetHeaderProps) {
 
 export function SummaryWidget() {
   const [refreshing, setRefreshing] = useState(false)
+  const [, setNowTick] = useState(0)
   const { showToast } = useToast()
+
+  // Force re-render every TICK_INTERVAL_MS so the "Updated Xm ago" label
+  // advances even when the summary payload (and SWR state) is unchanged.
+  useEffect(() => {
+    const id = window.setInterval(() => setNowTick((n) => n + 1), TICK_INTERVAL_MS)
+    return () => window.clearInterval(id)
+  }, [])
+  // SWR de-dupes by key, so reusing the stats hook is free —
+  // useDashboardStats() is already mounted on the parent dashboard.
+  const { data: stats } = useDashboardStats()
+  const pendingCount = stats?.pending_count ?? 0
 
   const { data, isLoading, error, mutate } = useSWR<Summary>(
     API_ROUTES.summary,
     fetcher,
     {
-      // Server owns freshness via Redis TTL — frontend doesn't poll.
-      revalidateOnFocus: false,
+      // Server owns freshness via Redis TTL + lazy invalidation (worker
+      // events → backend debouncer → DEL summary:current). Refetch on tab
+      // focus + an adaptive poll so the invalidation surfaces even when the
+      // SSE channel is closed (pending_count==0 case). 3s during a burst so
+      // the placeholder-to-real-summary swap happens within a few seconds
+      // of the threshold being crossed.
+      revalidateOnFocus: true,
       revalidateOnReconnect: true,
+      refreshInterval:
+        pendingCount > 0
+          ? UI_TIMINGS.summaryActiveRefreshMs
+          : UI_TIMINGS.summaryIdleRefreshMs,
     },
   )
 

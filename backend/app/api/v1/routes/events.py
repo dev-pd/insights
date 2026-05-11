@@ -32,6 +32,7 @@ async def _event_stream(
         await pubsub.subscribe(
             EventChannel.FEEDBACK_UPDATE.value,
             EventChannel.STATS_INVALIDATE.value,
+            EventChannel.SUMMARY_INVALIDATE.value,
         )
 
         connected_event = {
@@ -62,6 +63,8 @@ async def _event_stream(
                     yield f"event: feedback_update\ndata: {data}\n\n"
                 elif channel == EventChannel.STATS_INVALIDATE.value:
                     yield f"event: stats_invalidate\ndata: {data}\n\n"
+                elif channel == EventChannel.SUMMARY_INVALIDATE.value:
+                    yield f"event: summary_invalidate\ndata: {data}\n\n"
 
             now = asyncio.get_event_loop().time()
             if now - last_heartbeat >= heartbeat_interval_seconds:
@@ -73,6 +76,7 @@ async def _event_stream(
             await pubsub.unsubscribe(
                 EventChannel.FEEDBACK_UPDATE.value,
                 EventChannel.STATS_INVALIDATE.value,
+                EventChannel.SUMMARY_INVALIDATE.value,
             )
         except Exception:  # noqa: BLE001 — best effort during teardown
             pass
