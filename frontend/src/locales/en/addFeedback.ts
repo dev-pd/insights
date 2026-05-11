@@ -4,7 +4,7 @@ export const addFeedback = {
     description:
       "Paste customer feedback to extract sentiment, themes, and action items.",
     englishOnlyNote:
-      "Currently accepting English-only feedback — non-English entries are skipped. Multi-language support is on the roadmap. Apologies for the inconvenience.",
+      "Currently accepting English-only feedback. Multi-language support is on the roadmap. Apologies for the inconvenience.",
     bulkUploadNote:
       "Paste a single feedback item or multiple at once. CSV file upload is on the roadmap.",
   },

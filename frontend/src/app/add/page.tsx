@@ -30,10 +30,13 @@ export default function AddFeedbackPage() {
         </p>
       </header>
 
-      <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 px-4 py-3 flex flex-col gap-1.5">
+      <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 px-4 py-3">
         <p className="text-sm text-amber-900 dark:text-amber-200">
           {addFeedback.page.englishOnlyNote}
         </p>
+      </div>
+
+      <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 px-4 py-3">
         <p className="text-sm text-amber-900 dark:text-amber-200">
           {addFeedback.page.bulkUploadNote}
         </p>
