@@ -377,6 +377,91 @@ The first patch attempt compared `id(loop)`, which seemed cleaner than holding t
 
 ---
 
+## Case study 8 — the 429 retry-knob rabbit hole (rediscovering CS6 the hard way)
+
+### Symptom
+Mid-session 100-item Haiku stress test, after we'd shipped the new summary widget work:
+- 24 of 100 tasks landed in `FAILED` with `LLMRateLimitError`
+- Worker logs spammed `Retry in 0s` / `Retry in 1s` immediately after each 429
+- All three `ForkPoolWorker-N` instances hammered the API in lockstep
+
+First instinct: "retries are broken, tune them harder." That instinct was wrong; the time spent tuning retries was the lesson.
+
+### Root cause
+Two retry layers, neither configured right for the actual cap:
+
+**Layer 1 — LLM client (`call_with_retry`):** 3 attempts max, `2 * 2^attempt = 2,4,8s` backoff for 429. Total ~14s before raising `LLMRateLimitError`.
+
+**Layer 2 — Celery autoretry:** `retry_backoff=True, retry_jitter=True, max_retries=6`. Celery's `retry_backoff=True` uses **factor 1**, so the jittered delay is `random(0, 1 * 2^retries)`. First retry: `random(0, 1)` — frequently rolls near zero, meaning the task re-fires within ~100ms.
+
+**Combined effect:** burst of 100 items × 3 workers × ~1.5k input tokens × ~2s latency = ~90k tokens/min vs the 50k TPM cap (1.8× over). Retries spread the 429s over a longer window but didn't change the burn rate. Tasks that rolled bad jitter dice on all 6 Celery retries fell off the cliff into FAILED.
+
+### What we tried (the rabbit hole)
+
+**Round 1 — honor `retry-after`** (commit `954fa8c`).
+Anthropic returns a `retry-after` header on 429s — server tells us exactly when the bucket refills. We parsed it in `_parse_retry_after()` and used it instead of guessing. Helps individual retries, doesn't change throughput.
+
+**Round 2 — fix the jitter floor.**
+Changed Celery `retry_backoff=True` → `retry_backoff=10` so the first jittered retry is `random(0, 10)` instead of `random(0, 1)`. No more 0-second retries. Reduced "retry storm" pattern in logs but burn rate still over cap.
+
+**Round 3 — more retry budget.**
+`celery_extract_max_retries=6 → 12` for ~10 min median total backoff per task. Some tasks now ride out a sustained burst that previously killed them.
+
+**Result of rounds 1-3:** 24 failures → 5 failures. Better. Not zero. Five tasks still rolled bad jitter on all 12 retries.
+
+**Round 4 — actually fix it.**
+`CELERY_WORKER_CONCURRENCY=3 → 1`. With 1 worker × ~2s latency × ~1.5k tokens = **~45k tokens/min**, just under the 50k TPM cap. Burst takes longer to drain (200s vs 70s) but **0 failures**.
+
+This is the recommendation Case Study 6 already documented for Haiku. We rediscovered it the hard way.
+
+### Lesson
+**Retries spread failures over time; they don't change the average rate.** If your steady-state burn exceeds the cap, retries cap the percentage of FAILED tasks but never drive it to zero — you just get smaller piles of failed tasks at longer intervals.
+
+The retry-knob impulse is seductive because each tweak measurably helps (24 → 14 → 9 → 5). But you're walking a one-way function: every step reduces failures but never eliminates them, and you spend hours convincing yourself the next setting will be the one. The math from CS6 was already there:
+
+```
+concurrency × (60 / avg_latency) × prompt_tokens   vs   TPM cap
+3           × (60 / 2)            × 1500           =   135,000   ←  ~2.7× over 50k
+1           × (60 / 2)            × 1500           =    45,000   ←  under cap
+```
+
+If `(concurrency × calls/sec × tokens/call) > TPM`, no retry config saves you.
+
+**Retries are still worth tuning** — rounds 1-3 made the system gentler on Anthropic (no thundering-herd retries) and gave it more cushion to absorb transient spikes inside the cap. They just weren't load-bearing for the failure problem.
+
+### Sub-issue — cosmetic `Event loop is closed` tracebacks during the burst
+
+While debugging the 429s we got distracted by a wall of `RuntimeError: Event loop is closed` tracebacks in the worker output. They look catastrophic:
+
+```
+ERROR/ForkPoolWorker-1 Task exception was never retrieved
+future: <Task ... AsyncClient.aclose() ... exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File ".../httpx/_client.py", line 1985, in aclose
+    await self._transport.aclose()
+  ...
+RuntimeError: Event loop is closed
+```
+
+They're noise. Each Celery task wraps async work with `asyncio.run()`, which creates+closes a fresh event loop per task (see CS1 + CS7). The `AsyncAnthropic` httpx pool schedules an `aclose` callback that fires **after** the response is returned and **after** `asyncio.run()` has torn down the loop. The discarded `asyncio.Task` raises, Python's unraisable-exception hook prints the traceback, but no exception ever escapes to the Celery task. The actual HTTP call was `200 OK`; the row was successfully extracted.
+
+**Canary:** the traceback always bottoms out in `connection_pool.py:aclose` → `selector_events.py:close` → `_check_closed`. The line immediately before usually says `HTTP/1.1 200 OK`. The line immediately after says `Task ... succeeded`. If both are true, ignore it.
+
+**Suppressible** via `sys.unraisablehook` at worker boot. Not done — leaving the noise visible so future devs see the artifact and know what it is. The cleaner fix would be a process-wide event loop per Celery worker (via `worker_process_init` signal), but that's the same restructuring CS7 deferred.
+
+### Fix scope (commits `954fa8c`, `35ff4db`, `0943009`)
+- `backend/app/llm/client.py:_parse_retry_after` — honor anthropic's 429 `retry-after`
+- `backend/app/core/config.py` — `celery_extract_retry_backoff_base=10`, `celery_extract_max_retries=12`, `llm_retry_backoff_max_seconds=90`
+- `backend/app/tasks/feedback_tasks.py` — pass the new backoff factor to Celery
+- `backend/.env.example` — `CELERY_WORKER_CONCURRENCY=1` (load-bearing fix)
+
+### How we found it (and what made it slow)
+Real-time monitoring of worker logs during the burst showed the 429s and `Retry in 0s` pattern. The slowness wasn't finding the bug — it was that each retry-tweak gave partial relief, which made it tempting to keep tuning instead of going back to first principles. The eventual `concurrency=1` fix was a 30-second change. The path to it took an hour because we kept asking "what retry knob fixes this?" instead of "what's the actual rate?"
+
+If you find yourself iterating retry settings and watching the failure count drop monotonically but never to zero, **stop** and recompute `concurrency × calls/sec × tokens/call`. That's the only number that matters.
+
+---
+
 ## Minor issues — also fixed, smaller engineering surface
 
 ### Multi-paste defaulted to "Single" mode
