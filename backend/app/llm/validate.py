@@ -6,19 +6,10 @@ from app.constants import SkipReason
 from app.core.config import get_settings
 
 
-# Conservative regex set for the obvious prompt-injection / override
-# patterns. Designed for high precision, not high recall — we accept that
-# clever paraphrases get through to the LLM (where temperature=0 + the
-# system prompt are the second line of defense). The point is to cheaply
-# reject the textbook attempts ("ignore previous instructions",
-# "disregard all rules above", "reveal your system prompt") without
-# burning a real Anthropic call on them, and to flag them clearly in the
-# skipped-rows audit trail.
-#
-# Bounding the gap with `.{0,40}` keeps the regexes from false-positiving
-# on legitimate feedback like "Could you ignore the previous version's
-# bug? The instructions in the manual were unclear." — those have too
-# much distance between the override verb and the noun.
+# High-precision (not high-recall) prompt-injection patterns. The `.{0,40}`
+# gap bound is what keeps "could you ignore the previous version's bug?"
+# from false-positiving — legitimate uses have too much distance between
+# the override verb and the target noun.
 _INJECTION_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(
         r"\b(?:ignore|disregard|forget|override|bypass|skip)\b"
@@ -39,11 +30,8 @@ _INJECTION_PATTERNS: tuple[re.Pattern[str], ...] = (
 
 
 def validate_feedback(text: str) -> SkipReason | None:
-    """Pre-LLM validation. Returns SkipReason if input should be skipped, None if valid.
-
-    Thresholds (length, alpha ratio) come from Settings — tunable per environment.
-    Order matters — cheap checks run first to reject garbage before more expensive
-    ones (profanity scan loads a dictionary, regex scans iterate the text)."""
+    """Pre-LLM validation. Returns SkipReason if input should be skipped, None
+    if it should reach the LLM. Order matters — cheap checks run first."""
     settings = get_settings()
     stripped = text.strip()
 

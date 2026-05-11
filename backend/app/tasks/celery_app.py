@@ -22,13 +22,11 @@ celery_app.conf.update(
     # One in-flight task per fork; prevents one worker hoarding the queue.
     worker_prefetch_multiplier=1,
     result_expires=settings.celery_result_expires_seconds,
-    # JSON only — never pickle from an untrusted broker.
-    task_serializer="json",
+    task_serializer="json",  # never pickle from an untrusted broker
     result_serializer="json",
     accept_content=["json"],
-    # Soft → graceful cleanup window, hard → SIGKILL.
-    task_soft_time_limit=settings.celery_task_soft_time_limit_seconds,
-    task_time_limit=settings.celery_task_time_limit_seconds,
+    task_soft_time_limit=settings.celery_task_soft_time_limit_seconds,  # graceful cleanup
+    task_time_limit=settings.celery_task_time_limit_seconds,  # SIGKILL
     timezone="UTC",
     enable_utc=True,
     beat_schedule={

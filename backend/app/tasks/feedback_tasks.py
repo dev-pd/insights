@@ -25,7 +25,7 @@ from app.tasks.celery_app import celery_app
 
 log = logging.getLogger(__name__)
 
-# Resolved at import — Celery decorator args can't be late-bound.
+# Resolved at import: Celery decorator args can't be late-bound.
 _retry_settings = get_settings()
 
 
@@ -83,8 +83,6 @@ async def _do_extraction(feedback_id: int) -> dict:
             return {"feedback_id": feedback_id, "status": "not_found"}
 
         if feedback.status != FeedbackStatus.PROCESSING.value:
-            # Retry of a task whose first attempt already succeeded, or
-            # manual state edit. Don't re-extract.
             log.warning(
                 "feedback_not_in_processing_status",
                 extra={
@@ -100,7 +98,6 @@ async def _do_extraction(feedback_id: int) -> dict:
         try:
             result, metadata = await extract_insights(feedback.text)
         except LLMError as error:
-            # Re-raise so autoretry can pick it up.
             await _mark_failed(
                 session,
                 redis_client,
@@ -109,12 +106,7 @@ async def _do_extraction(feedback_id: int) -> dict:
                 context="celery_task_llm_error",
             )
             raise
-        except Exception as error:  # noqa: BLE001
-            # Without this catch, an uncaught exception leaves the row in
-            # PROCESSING forever (orphan-row bug). Mark FAILED, then re-raise
-            # — Exception is NOT in autoretry_for, so this surfaces as a
-            # permanent Celery failure, which is correct for our bugs
-            # (AttributeError, KeyError, etc.).
+        except Exception as error:  # noqa: BLE001 — without this catch, an uncaught exception leaves the row in PROCESSING forever (orphan-row bug). Re-raise so Celery surfaces it as permanent FAILURE.
             await _mark_failed(
                 session,
                 redis_client,
@@ -124,11 +116,6 @@ async def _do_extraction(feedback_id: int) -> dict:
             )
             raise
 
-        # Non-English skip: app is English-only for now; the LLM detects
-        # language as part of extraction, so we use that to flip the row to
-        # skipped post-call. Cost: one Anthropic call per non-English item.
-        # Production graduation = `langdetect` pre-LLM. Token usage IS still
-        # recorded so the operator can see what non-English traffic costs.
         usage_repo = LlmUsageRepository(session)
         await usage_repo.record(
             call_type=LlmCallType.EXTRACTION.value,
@@ -140,11 +127,6 @@ async def _do_extraction(feedback_id: int) -> dict:
             feedback_id=feedback.id,
         )
 
-        # Noise skip: the LLM flagged the input as nonsense (impossible
-        # timeframes, fiction, gibberish-with-words) via the is_noise schema
-        # field. Mirrors the language!='en' skip below — same shape, different
-        # trigger. The other extracted fields are intentionally NOT persisted
-        # so the dashboard treats this as pure noise rather than partial signal.
         if result.is_noise:
             feedback.status = FeedbackStatus.SKIPPED.value
             feedback.skip_reason = SkipReason.NOISE.value
@@ -227,8 +209,7 @@ async def _do_extraction(feedback_id: int) -> dict:
 @celery_app.task(
     name="app.tasks.feedback_tasks.extract_feedback_task",
     bind=True,
-    # Transient errors only. 4xx is our bug and shouldn't burn retry budget.
-    # Settings defaults (6/120s) absorb multi-minute 429 bursts in practice.
+    # Transient errors only. 4xx is our bug; don't burn retry budget on it.
     autoretry_for=(LLMError, TimeoutError, ConnectionError),
     retry_backoff=True,
     retry_backoff_max=_retry_settings.celery_extract_retry_backoff_max,

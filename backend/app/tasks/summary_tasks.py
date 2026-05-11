@@ -36,9 +36,6 @@ async def _do_regenerate_summary() -> dict:
             feedback_repo = FeedbackRepository(session)
             usage_repo = LlmUsageRepository(session)
             service = SummaryService(feedback_repo, usage_repo, redis_client)
-            # force_refresh=True deletes the existing cache key and regenerates
-            # fresh. The service writes the new payload to Redis with the same
-            # TTL as on-demand refreshes.
             result = await service.get_summary(force_refresh=True)
             await session.commit()
             return {

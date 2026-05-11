@@ -16,7 +16,6 @@ from app.llm.prompts.summary.v1_1 import VERSION as V1_1_VERSION
 from app.llm.prompts.summary.v1_2 import PROMPT as V1_2_PROMPT
 from app.llm.prompts.summary.v1_2 import VERSION as V1_2_VERSION
 
-# Single source of truth for "which version is live in production".
 ACTIVE_PROMPT = V1_2_PROMPT
 ACTIVE_VERSION = V1_2_VERSION
 

@@ -19,8 +19,7 @@ log = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Short timeout so the loop checks client-disconnect + heartbeat-due often.
-_PUBSUB_POLL_SECONDS = 1.0
+_PUBSUB_POLL_SECONDS = 1.0  # short so loop checks disconnect + heartbeat often
 
 
 async def _event_stream(
@@ -66,8 +65,7 @@ async def _event_stream(
 
             now = asyncio.get_event_loop().time()
             if now - last_heartbeat >= heartbeat_interval_seconds:
-                # SSE comment line — no client event, keeps proxies happy.
-                yield ": heartbeat\n\n"
+                yield ": heartbeat\n\n"  # SSE comment — no client event, keeps proxies alive
                 last_heartbeat = now
 
     finally:
@@ -98,7 +96,6 @@ async def stream_events(
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            # Belt-and-suspenders for any upstream that doesn't disable buffering.
-            "X-Accel-Buffering": "no",
+            "X-Accel-Buffering": "no",  # belt-and-suspenders for upstreams that buffer
         },
     )

@@ -26,7 +26,6 @@ from app.llm.prompts.extraction.v1_6 import VERSION as V1_6_VERSION
 from app.llm.prompts.extraction.v1_7 import PROMPT as V1_7_PROMPT
 from app.llm.prompts.extraction.v1_7 import VERSION as V1_7_VERSION
 
-# Single source of truth for "which version is live in production".
 ACTIVE_PROMPT = V1_7_PROMPT
 ACTIVE_VERSION = V1_7_VERSION
 

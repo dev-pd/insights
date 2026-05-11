@@ -16,8 +16,7 @@ from app.llm.prompts.summary import (
 
 log = logging.getLogger(__name__)
 
-# Per-item char cap so N × text doesn't blow the prompt budget.
-MAX_FEEDBACK_TEXT_CHARS_IN_PROMPT = 300
+MAX_FEEDBACK_TEXT_CHARS_IN_PROMPT = 300  # per-item cap; bounds N × text prompt budget
 
 
 def _format_feedback_for_summary(feedback_items: list[dict[str, Any]]) -> str:

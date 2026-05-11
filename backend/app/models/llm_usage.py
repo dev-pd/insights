@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 class LlmUsage(Base):
     __tablename__ = "llm_usage"
 
-    # BigInt: audit grows faster than feedback; cheap Int4-wraparound insurance.
+    # BigInt: audit grows faster than feedback (Int4-wraparound insurance).
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     call_type: Mapped[str] = mapped_column(String(32), nullable=False)
     model: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -33,8 +33,7 @@ class LlmUsage(Base):
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     prompt_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
-    # SET NULL so cost history survives feedback deletion — the call cost
-    # real money even after the row it described is gone.
+    # SET NULL: cost history survives feedback deletion — call cost real money.
     feedback_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("feedback.id", ondelete="SET NULL"),
@@ -47,7 +46,6 @@ class LlmUsage(Base):
         server_default=func.now(),
     )
 
-    # noload because the relationship is rarely traversed; avoid implicit JOINs.
     feedback: Mapped["Feedback | None"] = relationship("Feedback", lazy="noload")
 
     __table_args__ = (

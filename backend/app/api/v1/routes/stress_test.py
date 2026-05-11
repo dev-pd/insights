@@ -21,12 +21,8 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# Fallback pool used when goldens aren't on disk (e.g., a non-docker dev
-# run where the evals/ tree isn't copied alongside the code). 10 hand-
-# picked items covering the major sentiment + theme patterns; intentionally
-# smaller and less diverse than the real golden pool — when this fallback
-# fires, you'll see a less varied stress run, which is a signal to fix the
-# deployment (the goldens *should* be available).
+# Fallback when goldens aren't on disk (e.g. non-docker dev run). Less varied;
+# if this fires, the warning log signals a deployment to fix.
 _FALLBACK_POOL: tuple[str, ...] = (
     "Product quality is excellent and the shipping was super fast this week.",
     "Mobile app crashes on the login screen on Android 14. Restarting does not help.",
@@ -40,7 +36,6 @@ _FALLBACK_POOL: tuple[str, ...] = (
     "Just make it better. Everything about this product is frustrating right now.",
 )
 
-# Resolved at import — read goldens once, not per request.
 _GOLDEN_FILE = Path("/app/evals/golden/extraction.jsonl")
 
 
@@ -97,8 +92,7 @@ class StressTestResponse(BaseModel):
 
 
 def _generate_texts(count: int) -> list[str]:
-    # Deterministic seed per count → stable mix between runs at the same N,
-    # useful for reproducible debugging while still rotating across the pool.
+    # Seed by count → reproducible mix per N for debugging.
     rng = random.Random(0xC0FFEE + count)
     return [
         f"[stress {index + 1:03d}/{count:03d}] {rng.choice(_STRESS_POOL)}"

@@ -21,9 +21,8 @@ def _percentage(part: int, total: int) -> float:
 
 
 def _delta_pct(current: int, previous: int) -> float | None:
-    # None on zero previous → UI renders '-' instead of infinity.
     if previous == 0:
-        return None
+        return None  # UI renders '-' instead of infinity
     return round(((current - previous) / previous) * 100, 1)
 
 
@@ -61,9 +60,7 @@ class StatsService:
         positive_pct = _percentage(positive, total_extracted)
         negative_pct = _percentage(negative, total_extracted)
 
-        # 24h windows anchored on `now` (not midnight) so on a short-lived
-        # demo `today_count != total_feedback`, and so the cohort matches
-        # the AI summary widget's 24h lookback.
+        # 24h windows anchored on `now` (not midnight) match the AI summary widget's lookback.
         now = datetime.now(timezone.utc)
         today_start = now - timedelta(hours=24)
         yesterday_start = now - timedelta(hours=48)
@@ -91,7 +88,7 @@ class StatsService:
             for theme, count in theme_counter.most_common(top_themes_limit)
         ]
 
-        # Init every day in the window so the chart shows zeros, not gaps.
+        # Pre-init every day so the chart shows zeros, not gaps.
         today = now.date()
         start_date = today - timedelta(days=trend_days - 1)
         trend_buckets: dict[str, dict[str, int]] = {}
@@ -116,8 +113,7 @@ class StatsService:
             for day, counts in sorted(trend_buckets.items())
         ]
 
-        # Read latency/tokens from llm_usage so totals cover all call types
-        # (extraction + summary), not just feedback-row metadata.
+        # llm_usage covers all call types (extraction + summary), not just per-feedback.
         avg_latency_ms = await self.llm_usage_repo.avg_latency_ms()
         input_tokens, output_tokens = await self.llm_usage_repo.total_tokens()
 

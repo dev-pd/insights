@@ -66,7 +66,6 @@ class SummaryService:
         try:
             summary_text, metadata = await generate_summary(feedback_items)
         except LLMError as error:
-            # Skip caching the error path — next request retries.
             log.exception(
                 "summary_generation_failed",
                 extra={
@@ -79,12 +78,11 @@ class SummaryService:
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "feedback_count": len(feedback_items),
                 "cached": False,
-                "error": str(error),
+                "error": str(error),  # error path NOT cached — next request retries
                 "metadata": None,
             }
 
-        # input_tokens=0 is the "not enough data" sentinel — no call was
-        # made, don't record a row.
+        # input_tokens=0 is the "not enough data" sentinel — no call made, don't record.
         if metadata.get("input_tokens", 0) > 0:
             await self.llm_usage_repo.record(
                 call_type=LlmCallType.SUMMARY.value,

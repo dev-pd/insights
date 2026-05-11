@@ -52,9 +52,7 @@ async def get_stats_service(
 StatsServiceDep = Annotated[StatsService, Depends(get_stats_service)]
 
 
-# Module-level singleton Redis client. redis-py manages its own connection
-# pool, so reusing the client across requests is the right shape — creating
-# one per request would tear down/recreate the pool every call.
+# Module-level singleton: redis-py manages its own pool — per-request init would thrash it.
 _redis_client: redis_async.Redis | None = None
 
 

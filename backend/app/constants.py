@@ -9,29 +9,20 @@ class FeedbackStatus(StrEnum):
 
 
 class SkipReason(StrEnum):
+    """Why a feedback row never reached `extracted` status. See backend/CLAUDE.md
+    § LLM module for which rules fire pre-LLM (validator) vs post-LLM (worker)."""
+
     TOO_SHORT = "too_short"
     TOO_LONG = "too_long"
     GIBBERISH = "gibberish"
     PROFANITY = "profanity"
     EMPTY = "empty"
     LLM_VALIDATION_ERROR = "llm_validation_error"
-    # English-only for now. Detected at the LLM layer (language field) and
-    # mapped here by the worker after extraction. Production graduation:
-    # add `langdetect` pre-LLM so we don't burn a call to find out.
     NON_ENGLISH_UNSUPPORTED = "non_english_unsupported"
-    # Conservative regex-based detection of obvious prompt-override
-    # attempts ("ignore previous instructions", "reveal your prompt").
-    # Rejected at the validator so the LLM never sees the payload.
     PROMPT_INJECTION = "prompt_injection"
-    # The LLM itself flagged the feedback as noise (impossible timeframes,
-    # pure fiction, gibberish) via the `is_noise=true` schema field. The
-    # worker maps this to a skipped row so the dashboard doesn't count
-    # nonsense as real customer signal.
     NOISE = "noise"
 
 
 class LlmCallType(StrEnum):
-    """Categories tracked in the llm_usage audit table."""
-
     EXTRACTION = "extraction"
     SUMMARY = "summary"

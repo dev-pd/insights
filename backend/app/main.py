@@ -18,7 +18,7 @@ from app.middleware import (
     sqlalchemy_error_handler,
 )
 
-# Import models so SQLAlchemy registers them on Base.metadata before create_all.
+# Side-effect import: SQLAlchemy needs models registered on Base.metadata before create_all.
 from app.models import feedback as _feedback  # noqa: F401
 from app.models import llm_usage as _llm_usage  # noqa: F401
 
@@ -30,7 +30,7 @@ async def lifespan(app: FastAPI):
     configure_logging()
     settings = get_settings()
     logger.info("app_starting", extra={"log_level": settings.log_level})
-    # Phase 1: create tables on startup. Real apps would use Alembic.
+    # Bootstrap schema on startup. Production graduation = Alembic.
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("app_started")

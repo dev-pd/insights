@@ -35,10 +35,8 @@ class FeedbackService:
             status=FeedbackStatus.PROCESSING,
         )
 
-        # CRITICAL: commit BEFORE .delay(). Worker queries the DB
-        # immediately; if the request-end commit hasn't run, worker sees
-        # `not_found`, returns SUCCESS, row stays PROCESSING forever. Hit
-        # this on a 20-item batch — 15 zombie rows. See CASE_STUDIES.md.
+        # CRITICAL: commit BEFORE .delay() — worker queries the DB
+        # immediately; uncommitted row → `not_found` → orphan PROCESSING. See CASE_STUDIES.md.
         await self.repo.session.commit()
 
         try:
@@ -58,7 +56,7 @@ class FeedbackService:
                 "error": str(error),
                 "context": "task_dispatch",
             }
-            # Second commit needed — first commit emptied the transaction.
+            # Second commit: first commit emptied the transaction.
             await self.repo.session.commit()
 
         return feedback

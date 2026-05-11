@@ -20,8 +20,7 @@ class LlmUsageRepository:
         prompt_version: str | None = None,
         feedback_id: int | None = None,
     ) -> LlmUsage:
-        # Flush only — caller's session commits (request DI for sync,
-        # worker_session_scope for tasks).
+        # Flush only — caller commits (request DI / worker_session_scope).
         usage = LlmUsage(
             call_type=call_type,
             model=model,
@@ -37,7 +36,7 @@ class LlmUsageRepository:
         return usage
 
     async def total_tokens(self, call_type: str | None = None) -> tuple[int, int]:
-        # coalesce keeps None out of the response on an empty table.
+        # coalesce → 0, not None, on an empty table.
         stmt = select(
             func.coalesce(func.sum(LlmUsage.input_tokens), 0),
             func.coalesce(func.sum(LlmUsage.output_tokens), 0),

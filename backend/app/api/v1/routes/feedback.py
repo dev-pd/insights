@@ -81,9 +81,7 @@ class FeedbackBatchResponse(BaseModel):
     total: int
     processing: int
     skipped: int
-    # Items where task dispatch itself failed (broker down). Extraction-time
-    # failures don't appear here — they surface to the client via SSE.
-    failed: int
+    failed: int  # dispatch-time failures only (broker down); extraction failures surface via SSE
 
 
 @router.post(

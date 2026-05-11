@@ -20,18 +20,14 @@ EXTRACT_TOOL = {
     "input_schema": ExtractionResult.model_json_schema(),
 }
 
-# Per-process semaphore bounding concurrent Anthropic calls. Sized from
-# Settings.llm_concurrency_limit. Currently a no-op under prefork Celery
-# (each fork = own process + own loop, prefetch_multiplier=1 means one
-# task in flight per fork), but bites the FastAPI summary path and any
-# future intra-task fan-out. Cross-process bounding lives in
-# celery_worker_concurrency.
+# Per-process semaphore. No-op under prefork Celery (one task per fork via
+# prefetch_multiplier=1) but bites the FastAPI summary path and any future
+# intra-task fan-out. Cross-process bounding lives in celery_worker_concurrency.
 _llm_call_semaphore: asyncio.Semaphore | None = None
 
 
 def _get_semaphore() -> asyncio.Semaphore:
-    # Lazy-init so construction binds to the live loop, not whichever loop
-    # imported this module. Matters across asyncio.run-per-Celery-task.
+    # Lazy-init so construction binds to the live loop, not the import-time loop.
     global _llm_call_semaphore
     if _llm_call_semaphore is None:
         settings = get_settings()
@@ -50,11 +46,10 @@ async def extract_insights(text: str) -> tuple[ExtractionResult, dict]:
         return await client.messages.create(
             model=settings.llm_model,
             max_tokens=settings.llm_max_tokens,
-            # temperature=0 for borderline-stable extraction. "would
-            # absolutely love a dark mode!" sits on the neutral/positive
-            # boundary and flipped run-to-run at default temp=1.0 even with
-            # an explicit sentiment rule. The summary prompt deliberately
-            # uses the default temp (prose benefits from variability).
+            # temperature=0: borderline cases (e.g. "would absolutely love a dark
+            # mode!" on the neutral/positive boundary) flipped run-to-run at temp=1.0
+            # even with explicit sentiment rules. The summary prompt uses default temp
+            # since prose benefits from variability.
             temperature=0,
             system=ACTIVE_PROMPT,
             messages=[{"role": "user", "content": text}],

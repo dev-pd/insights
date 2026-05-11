@@ -36,7 +36,6 @@ def get_client() -> AsyncAnthropic:
     try:
         current_loop = asyncio.get_running_loop()
     except RuntimeError:
-        # Sync context (shouldn't happen — all callers are `async def`).
         current_loop = None
 
     if _client is None or _client_loop is not current_loop:
@@ -89,9 +88,7 @@ async def call_with_retry(
             )
             await asyncio.sleep(delay)
         except APIError as e:
-            # APIConnectionError (the parent of APITimeoutError) lacks
-            # status_code — it never got a response. Treat it as transient
-            # and retry, same as a 5xx.
+            # APIConnectionError lacks status_code — never got a response. Treat as transient.
             status_code = getattr(e, "status_code", None)
             is_transient = status_code is None or (500 <= status_code < 600)
             if is_transient:
