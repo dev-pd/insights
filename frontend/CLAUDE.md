@@ -1,407 +1,121 @@
 # Frontend conventions
 
-How to write TypeScript and React code in this project. Applies to everything under `frontend/`. These are non-negotiable conventions: when generating or editing frontend code, follow them without exception.
+Project-specific rules for `frontend/`. Generic React/TypeScript (named exports, no `any`, hooks rules, accessibility basics) is assumed — this file documents what's load-bearing for *this* codebase.
 
 ## Folder structure
 
 ```
 frontend/src/
-├── app/                         # Next.js 16 App Router
-│   ├── layout.tsx               # Server component, root layout
-│   ├── page.tsx                 # Home page
-│   ├── error.tsx                # Route-level error boundary ('use client')
-│   ├── not-found.tsx            # 404 page
-│   └── globals.css              # @import "tailwindcss" + @theme inline
+├── app/                         Next.js 16 App Router
+│   ├── layout.tsx               Server component, root layout
+│   ├── page.tsx                 Dashboard (KPIs + summary + charts)
+│   ├── add/page.tsx, feedback/page.tsx
+│   ├── error.tsx                Route-level error boundary ('use client')
+│   ├── not-found.tsx            404 page
+│   └── globals.css              @import "tailwindcss" + @theme inline
 ├── components/
-│   ├── ui/                      # shadcn primitives (uses forwardRef internally for React 18 compat)
-│   ├── shared/                  # Cross-feature: HealthCheck
-│   ├── feedback/                # PasteForm, FeedbackList, FeedbackCard
-│   └── stats/                   # KpiCard, ThemeFrequencyChart, SentimentTrendChart, StatsDashboard
-├── hooks/                       # Phase 4: useFeedbackStream, useToasts
+│   ├── ui/                      shadcn primitives (forwardRef inside, do not refactor)
+│   ├── shared/                  Cross-feature: HealthCheck, ProcessingPill, ToastStack
+│   ├── feedback/                PasteForm, FeedbackList, FeedbackCard, FeedbackTable
+│   └── stats/                   KpiCard, StatsDashboard, ThemeFrequencyChart, SentimentTrendChart
+├── hooks/                       useFeedbackStream, useToast, useDashboardStats, useDebouncedValue
 ├── lib/
-│   ├── api/                     # client.ts, routes.ts, types.ts
-│   └── utils.ts                 # cn() helper from shadcn
-└── locales/
-    └── en/                      # Typed string modules (direct imports — NO barrel file)
-        ├── common.ts            # app, errors, status, actions, loading
-        ├── feedback.ts          # pasteForm, list, card, sentiment
-        └── stats.ts             # kpis, charts
+│   ├── api/                     client.ts, routes.ts, types.ts
+│   ├── constants.ts             UI_TIMINGS, UI_DIMENSIONS
+│   ├── sentiment.ts             SENTIMENT_STYLES, SENTIMENT_LABELS
+│   └── utils.ts                 cn() helper from shadcn
+└── locales/en/                  Typed string modules — direct imports, NO barrel file
+    ├── common.ts, feedback.ts, stats.ts
 ```
 
-### Dashboard layout
+## Dashboard composition
 
-The home page (`/`) is the executive view — KPIs + AI summary + charts, no input forms. Composition (top → bottom):
+The home page `/` is the executive view — no input forms. Top → bottom:
 
-- **6 KPI cards** in a responsive grid: `grid-cols-2 sm:grid-cols-3 lg:grid-cols-6`. Order: Total feedback, Positive %, Negative %, This week (with WoW trend arrow), Avg latency, Total tokens.
-- **AI summary widget** (Phase 3.4) — single Card sandwiched between KPIs and charts:
-  - Sources `GET /api/v1/summary` once per page; server owns freshness via Redis TTL so the frontend doesn't poll.
-  - Manual refresh hits `POST /api/v1/summary/refresh` and writes the fresh response back to the SWR cache via `mutate(fresh, { revalidate: false })`.
-  - Refresh failures surface as a toast (the existing `useToast` system) — never `console.log` in committed code.
-  - Footer line shows `Updated Xm ago` (or `just now`/`Xh ago`) plus a `· from cache` indicator when the payload came from cache.
-- **Two charts side-by-side** below the summary (`md:grid-cols-2`):
-  - Top themes — horizontal bar, last 7 days, top 10. Reads from `data.top_themes` (already windowed and capped on the backend).
-  - Sentiment trend — stacked bar, last 14 days. Reads from `data.sentiment_trend`.
+- **6 KPI cards** in `grid-cols-2 sm:grid-cols-3 lg:grid-cols-6`. Order: Total feedback, Positive %, Negative %, This week (with WoW trend arrow), Avg latency, Total tokens. `KpiCard.trend` prop (`"up"|"down"|"flat"|null`) renders a colored Unicode arrow; the trend arrow appears only when `|delta_pct| > 5pp` — small fluctuations look noisy on a small dataset. `delta_pct === null` hides the arrow entirely. Skeleton count = `KPI_COUNT = 6` so loading state matches loaded state without a layout jump.
+- **AI summary widget** sandwiched between KPIs and charts. Sources `GET /api/v1/summary` once per page; server owns freshness via Redis TTL. Manual refresh hits `POST /api/v1/summary/refresh` and writes back via `mutate(fresh, { revalidate: false })`. Refresh failures surface as toasts — never `console.log` in committed code. Footer shows `Updated Xm ago` + `· from cache` when payload came from cache.
+- **Two charts side-by-side** below (`md:grid-cols-2`). Top themes (horizontal bar, last 7 days, top 10, reads `data.top_themes`). Sentiment trend (stacked bar, last 14 days, reads `data.sentiment_trend`).
 
-`KpiCard` exposes an optional `trend` prop (`"up" | "down" | "flat" | null`) rendered as a colored Unicode arrow with an accessible label. The "This week" KPI is the only consumer; the arrow appears only when `|delta_pct| > 5pp` (under that, render `flat` — small fluctuations look noisy on a small dataset). `delta_pct === null` (last week was zero) hides the arrow entirely and the hint shows `vs last week: -`.
+All three routes (`/`, `/add`, `/feedback`) put their `<h1>` directly in `app/<route>/page.tsx`, not inside child components.
 
-Skeleton count is tied to `KPI_COUNT = 6` so the loading state visually matches the loaded state without a jump.
+## Tooling
 
-## Tooling and versions
+Next.js 16 (App Router, Turbopack default), TypeScript 5.9 strict, React 19, Tailwind v4 (CSS-first config), shadcn/ui on `@base-ui/react`, SWR for data fetching, date-fns for relative timestamps. npm for package management. Deploys via `next start` as a Node server (not static export) — preserves the full Next.js feature surface for future auth additions.
 
-- Next.js 16 with App Router (not Pages Router); Turbopack is the default dev/build engine
-- TypeScript 5.9 with `strict: true` in `tsconfig.json`
-- React 19 — `forwardRef` is no longer required for refs (ref is a regular prop). Existing shadcn components may still use the older pattern; both work.
-- Tailwind v4 (CSS-first config via `@import "tailwindcss"` + `@theme inline`; no `tailwind.config.ts` theme block needed)
-- shadcn/ui components on `@base-ui/react` (shadcn v4 default), installed via `npx shadcn@latest add`
-- SWR for data fetching and cache mutation
-- date-fns for relative timestamps
-- Prettier for TypeScript formatting via the Next.js default config
+## React 19 specifics
 
-Package management via `npm`. Run dev server with `npm run dev`.
+- **Use `ref` as a normal prop, not `forwardRef`.** Exception: shadcn primitives in `components/ui/` still use `forwardRef` for backward compat — don't refactor library code.
+- **Server Components by default.** Add `'use client'` only when needed: state, effects, event handlers, browser APIs.
+- **Server Actions deliberately not used.** Separate FastAPI backend; mutations go through REST. Architectural choice, not unawareness.
 
-Frontend deploys via `next start` as a Node server, not static export. `next.config.js` does not set `output: 'export'`. This preserves the full Next.js feature surface (middleware, server components, server actions, API routes) for future additions like authentication.
+## Tailwind v4 specifics
 
-## Modern patterns (2026)
+- `@import "tailwindcss"` in `globals.css`, NOT the three `@tailwind` directives
+- `@theme inline` in CSS for theme customization, NOT a JS config block
+- `@tailwindcss/postcss` plugin, NOT `tailwindcss` + `autoprefixer`
+- Built-in palette uses `oklch()` (modern wider-gamut color space)
 
-This codebase follows current 2026 best practices. Phase 2-4 code MUST follow these rules.
+## No barrel files (in our own code)
 
-### React 19 idioms
-
-**Use ref as a normal prop, NOT `React.forwardRef`.**
-
-```tsx
-// Good
-interface Props {
-  ref?: React.Ref<HTMLDivElement>
-  children?: React.ReactNode
-}
-function FeedbackCard({ ref, children }: Props) {
-  return <div ref={ref}>{children}</div>
-}
-
-// Bad
-const FeedbackCard = React.forwardRef<HTMLDivElement, Props>((props, ref) => (
-  <div ref={ref}>...</div>
-))
-```
-
-**Exception:** shadcn primitives in `components/ui/` use `forwardRef` for backward compat with React-18 consumers. Don't refactor library code.
-
-**Use the `use()` hook for promises in Server Components when applicable.** We use SWR for client-side data fetching, which has its own promise handling. The `use()` hook is documented here for completeness; current code does not need it.
-
-**Server Components by default.** Add `'use client'` only when needed: state (`useState`/`useReducer`), effects (`useEffect`), event handlers (`onClick`), browser APIs, or third-party client-only libraries.
-
-### Server Actions: deliberately not used
-
-We have a separate FastAPI backend. Mutations go through the REST API, not Server Actions. This is a deliberate architectural choice (separation of concerns, language-appropriate tooling for LLM work) — not lack of awareness.
-
-### Async cookies / headers (Next.js 15+)
-
-If we add auth or session handling later, `cookies()` and `headers()` must be awaited:
+Per Vercel + Next.js 2026: barrel files in your own code harm tree-shaking and bundle size. Direct leaf-file imports only:
 
 ```ts
-const cookieStore = await cookies()
-const session = cookieStore.get("session")
+import { feedback } from "@/locales/en/feedback"        // ✓
+import { PasteForm } from "@/components/feedback/PasteForm"  // ✓
+import { feedback } from "@/locales"                    // ✗ barrel
 ```
 
-Currently no auth, so unused. Documented for graduation work.
+**Do not create `index.ts` files in `components/`, `locales/`, `hooks/`, or `lib/`.** Lint check: `find src -name "index.ts" -not -path "*/node_modules/*"` should return zero matches.
 
-### No barrel files in our own code
+Exception: third-party libraries (lucide-react, shadcn/ui) — their barrels are optimized via `experimental.optimizePackageImports` in `next.config.js`.
 
-Per Vercel and Next.js 2026 recommendations (https://vercel.com/blog/how-we-optimized-package-imports-in-next-js), barrel files in YOUR OWN code harm build performance, tree-shaking, and bundle size.
+## No magic values
 
-Direct imports from leaf files only:
+Every tunable lives in one of three homes — never inline.
 
-```ts
-// Good
-import { feedback } from "@/locales/en/feedback"
-import { PasteForm } from "@/components/feedback/PasteForm"
+| Type | Where it lives |
+|---|---|
+| API route paths | `lib/api/routes.ts` as `API_ROUTES` (`as const`) — versioned paths include `/v1/`, ops endpoints don't |
+| UI timings (polling intervals, debounces, animations, request timeouts) | `lib/constants.ts` as `UI_TIMINGS` (`as const`) |
+| UI dimensions (textarea rows, chart slot widths, label heights) | `lib/constants.ts` as `UI_DIMENSIONS` (`as const`) |
+| User-facing strings | `locales/en/{common,feedback,stats}.ts` (`as const`, direct leaf imports) |
+| Sentiment / status visual maps | `lib/sentiment.ts` (`SENTIMENT_STYLES`, `SENTIMENT_LABELS`) |
+| API base URL | `process.env.NEXT_PUBLIC_API_BASE_URL` (empty-string fallback) — read once in `lib/api/client.ts` |
+| Backend-controlled values (page sizes, validation thresholds) | NOT in frontend code. Backend Settings is the source of truth; frontend reads via API |
+| Tailwind utility classes (`gap-4`, `p-6`) | Leave inline — design tokens, not magic numbers |
 
-// Bad
-import { feedback, common } from "@/locales"        // no barrel
-import { PasteForm, FeedbackList } from "@/components/feedback"   // no barrel
-```
+Workflow for a new tunable: add key to the right `as const` object → add trailing comment explaining what consumes it → direct-import the leaf.
 
-Each module is imported directly from its source file. **Do not create `index.ts` files in `components/`, `locales/`, `hooks/`, or `lib/`.**
+## Toast notifications
 
-**Exception:** third-party libraries (lucide-react, shadcn/ui) — their barrels are optimized via `experimental.optimizePackageImports` in `next.config.js`.
-
-### Tailwind v4 conventions
-
-- `@import "tailwindcss"` in `globals.css` (NOT three `@tailwind` directives)
-- `@theme inline` directive in CSS for theme customization (NOT JS config object)
-- `@tailwindcss/postcss` plugin (NOT `tailwindcss` + `autoprefixer`)
-- `@utility` for custom utilities (NOT `@layer`)
-- Built-in color palette uses `oklch()` colors (modern color space, wider gamut)
-
-### State management
-
-- **SWR** for server state. Use `mutate()` with optimistic updates for instant UI feedback.
-- **`useState`/`useReducer`** for local component state.
-- **React 19 Context** for cross-component state (no Redux/Zustand at this scale).
-
-### Toasts and side effects
-
-- Use `flushSync` from `react-dom` for synchronous DOM updates when ordering matters (toast queues, focus management). Setting a toast state inside `flushSync` ensures the toast renders before the next paint.
-- `crypto.randomUUID()` for client-side IDs. **Never install a `uuid` library.**
-
-#### Toast notifications
-
-Transient user feedback uses the `useToast` hook + `ToastStack` component (mounted once in `app/layout.tsx`).
-
-The hook backs onto module-level singleton state with a subscribe/notify pattern, so any component anywhere can trigger a toast that the single global stack renders. This avoids React Context boilerplate for what's intrinsically global UI.
+Transient feedback via `useToast` hook + `ToastStack` (mounted once in `app/layout.tsx`). Backs onto module-level singleton state with subscribe/notify, so any component can trigger a toast that the single global stack renders — avoids React Context boilerplate for intrinsically global UI.
 
 ```tsx
-import { useToast } from "@/hooks/useToast"
-
 const { showToast } = useToast()
 showToast("Feedback added", { variant: "success" })
 showToast("Could not connect", { variant: "error", durationMs: 6000 })
 ```
 
-- Variants: `"success"` (emerald), `"error"` (rose), `"info"` (slate, default).
-- Default duration: 4 seconds. Pass `durationMs` to override per-toast.
-- Cap of 5 visible at once — oldest is dropped when a 6th arrives.
-- Manual dismiss via the `×` button, returned from the hook as `dismissToast(id)`.
+Variants: `"success"` (emerald), `"error"` (rose), `"info"` (slate, default). Default duration 4s. Cap of 5 visible — oldest dropped when 6th arrives. Use `flushSync` from `react-dom` for synchronous DOM updates when ordering matters (toast queues, focus). `crypto.randomUUID()` for client-side IDs — **never install a `uuid` library**.
 
-### Multi-paste in PasteForm
+## Multi-paste in PasteForm
 
-The Add Feedback page supports two modes via a radio toggle:
-- **Single feedback**: whole textarea content = 1 feedback (default)
-- **Multiple feedback items**: split by `splitFeedbackTexts(text)`
+Radio toggle between single (whole textarea = 1 feedback) and multiple (split by `splitFeedbackTexts(text)`). Splitter logic:
+1. Tries blank-line separation first (`\n\s*\n+`) — paragraph-style copy from emails/Slack
+2. Falls back to single-newline split (`\n+`) — spreadsheet column copy
+3. Treats no-newline input as one feedback
 
-The splitter:
-1. Tries blank-line separation first (`\n\s*\n+`) — paragraph-style copy from emails, surveys, Slack threads.
-2. Falls back to single-newline split (`\n+`) when there are no blank lines — spreadsheet column copy.
-3. Treats input with no newlines as one feedback.
+Live count below textarea; turns destructive when `count > MAX_BATCH_SIZE` (50). Submit button disables in that state — backend rejects > 50 with 422 anyway, but stopping at the form is friendlier than a round-trip error.
 
-The detected count renders live below the textarea in multi mode and turns destructive when `count > MAX_BATCH_SIZE` (50). The submit button disables in that state — backend rejects > 50 with 422 anyway, but stopping the user at the form is friendlier than a round-trip error.
+## API types mirror backend
 
-Backend `POST /v1/feedback/batch` accepts `{texts: string[]}` (1-50 items) and processes sequentially. Sequential is deliberate — see backend/CLAUDE.md for the rate-limit + session-contention rationale. For Phase 4, this becomes Celery dispatch (each text → one task) and the UI shifts from "wait for batch result" to "see status updates flow in via SSE."
+Types in `lib/api/types.ts` must match what the backend returns. Update together in the same PR. The shape:
 
-### Performance
+```ts
+type Sentiment = "positive" | "neutral" | "negative"
+type FeedbackStatus = "processing" | "completed" | "failed" | "skipped"
 
-- `next.config.js` has `experimental.optimizePackageImports: ['lucide-react']` so only the icons used ship.
-- `next/image` for any images (we have none currently).
-- Server Components where possible (no `'use client'` unless necessary).
-- Bundle analysis: `npx @next/bundle-analyzer` can be added in graduation work.
-
-### TypeScript
-
-- `strict: true` (enforced).
-- No `any` types. Use `unknown` for genuinely unknown data.
-- Type-only imports: `import type { Foo } from "..."` when only types are needed.
-- `as const` for literal type narrowing in constants modules (`locales/en/*.ts` uses this).
-
-### Internationalization (i18n)
-
-User-facing strings live in `src/locales/en/` organized by feature (`common`, `feedback`, `stats`). Components import directly from leaf files:
-
-```tsx
-import { feedback } from "@/locales/en/feedback"
-return <h1>{feedback.pasteForm.title}</h1>
-```
-
-Currently English-only. Adding a locale (e.g., Greek):
-
-1. Create `src/locales/el/` mirroring `src/locales/en/`.
-2. Translate strings (preserve key shape exactly).
-3. Add a thin `src/lib/i18n.ts` that conditionally re-exports based on env / cookie / middleware.
-4. Components migrate from `@/locales/en/*` to `@/lib/i18n`.
-5. Or use Next.js i18n routing for full locale-as-URL-prefix support.
-
-Deliberately did NOT install i18next or react-intl. Runtime locale switching machinery is graduation-tier infrastructure. Constants modules with type-safe access via direct imports are sufficient for English-only with a documented migration path.
-
-### Testing strategy (deliberate)
-
-- **Frontend:** no tests written for the take-home. Visual evaluation by grader is sufficient signal.
-- **Backend Tier 1 only (Phase 5):** `test_validate.py`, `test_extract.py` (mocked Anthropic), `test_feedback_service.py` (fake repo).
-- Repository pattern enables testing services without mocking SQLAlchemy session calls.
-- See `NOTES.md` for full testing rationale.
-
-## Environment variables
-
-The frontend container has no env file in deployment. `apiClient.ts` uses relative paths (e.g., `/v1/feedback`) which nginx routes to the backend on the internal docker network. `NEXT_PUBLIC_API_BASE_URL` is unset and `apiClient` falls back to an empty-string base.
-
-Server-only env vars (e.g., `AUTH_SECRET` when auth is added later) would live in `frontend/.env.local` without the `NEXT_PUBLIC_` prefix — they stay server-side and never bundle into the browser. Running as a Node server (not static export) is what makes server-only env vars work; static export would not have this distinction.
-
-## Server vs client components
-
-Next.js App Router defaults to server components. Any file using `useState`, `useEffect`, hooks, browser APIs, or event handlers must start with `'use client'` at the very top. Default to server components when possible (layout shells, static content). Use `'use client'` only when interactivity is actually needed.
-
-For this app, every component in `components/` and every hook in `hooks/` uses `'use client'`; only `app/layout.tsx` and `app/page.tsx` (where applicable) can stay as server components.
-
-## Naming
-
-| Element | Convention | Example |
-|---|---|---|
-| Component file | PascalCase, `.tsx` | `FeedbackCard.tsx`, `PasteForm.tsx` |
-| Hook file | camelCase with `use` prefix, `.ts` | `useFeedbackStream.ts` |
-| Utility file | camelCase, `.ts` | `apiClient.ts`, `dateUtils.ts` |
-| Type-only file | lowercase with `.types.ts` suffix when standalone | `feedback.types.ts` |
-| Constants file | camelCase, `.ts` | `constants.ts` |
-| Component (in code) | PascalCase | `FeedbackCard`, `KpiCard` |
-| Hook (in code) | camelCase with `use` prefix | `useFeedbackStream`, `useDebouncedValue` |
-| Function | camelCase | `formatTimestamp`, `submitFeedback` |
-| Constant | UPPER_SNAKE_CASE for primitives | `POLL_INTERVAL_MS = 2000` |
-| Constant object | UPPER_SNAKE_CASE with `as const` | `API_ROUTES`, `SENTIMENT_STYLES` |
-| Type | PascalCase | `FeedbackOut`, `Sentiment` |
-| Props type | PascalCase ending in `Props` | `FeedbackCardProps` |
-
-### No single-letter variables
-
-`.map`, `.filter`, `.reduce` callbacks, `for` loop counters, and event handler arguments get descriptive names. The bar: would a reader unfamiliar with the function understand the variable's meaning at the point of first use?
-
-```tsx
-// Good
-{themes.map((themeCount) => ({ theme: themeCount.theme, count: themeCount.count }))}
-{pages.map((page, index) => <Button key={page}>{page}</Button>)}
-onChange={(event) => setText(event.target.value)}
-onClick={(event) => { event.stopPropagation(); onToggle() }}
-currentToasts.filter((toast) => toast.id !== id)
-for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) ...
-
-// Bad
-{themes.map((t) => ({ theme: t.theme, count: t.count }))}
-{pages.map((page, idx) => <Button key={page}>{page}</Button>)}
-onChange={(e) => setText(e.target.value)}
-onClick={(e) => { e.stopPropagation(); onToggle() }}
-currentToasts.filter((t) => t.id !== id)
-for (let i = 1; i <= totalPages; i++) ...
-```
-
-Pick a name that says what the value *is* in the domain (`theme`, `feedback`, `event`, `toast`), not just its type (`obj`, `item`, `e`, `t`).
-
-**Allowed exceptions:**
-- Literal `_` for "I'm ignoring this." `data.map((_, index) => ...)` is fine when the value is unused.
-- Math/layout conventions where the single letter IS the domain language: `x, y` for coordinates, `dx, dy` for deltas in chart code.
-
-## Exports
-
-**Named exports only.** No default exports anywhere except where Next.js requires them (page components in `app/`).
-
-```tsx
-// Good
-export function FeedbackCard({ item }: FeedbackCardProps) { ... }
-
-// Bad - default export
-export default function FeedbackCard({ item }: FeedbackCardProps) { ... }
-```
-
-The Next.js exception: `app/page.tsx`, `app/layout.tsx`, `app/loading.tsx`, etc. require default exports. Everything else is named.
-
-One primary thing per file: one component, one hook, one util module. Co-locate small helpers used only by that primary thing in the same file.
-
-## Components
-
-### Functional components with hooks only
-
-No class components. No exceptions.
-
-```tsx
-// Good
-export function FeedbackCard({ item }: FeedbackCardProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
-  return <div>...</div>
-}
-
-// Bad - class component
-export class FeedbackCard extends React.Component<FeedbackCardProps> { ... }
-```
-
-### Explicit prop types adjacent to component
-
-Define `Props` type immediately above the component. Don't inline.
-
-```tsx
-// Good
-type FeedbackCardProps = {
-  item: FeedbackOut
-  onExpand?: (id: string) => void
-}
-
-export function FeedbackCard({ item, onExpand }: FeedbackCardProps) { ... }
-
-// Bad - inline
-export function FeedbackCard({ item, onExpand }: { item: FeedbackOut; onExpand?: (id: string) => void }) { ... }
-```
-
-### Destructure props in the function signature
-
-```tsx
-// Good
-export function KpiCard({ label, value, trend }: KpiCardProps) {
-  return <div>{label}: {value}</div>
-}
-
-// Bad - access via props.x
-export function KpiCard(props: KpiCardProps) {
-  return <div>{props.label}: {props.value}</div>
-}
-```
-
-### Handle all four async states
-
-Every component that renders async data MUST handle all four states explicitly: loading, error, empty, and data. Skipping any of these creates broken UX.
-
-```tsx
-// Good - all four states
-export function FeedbackList() {
-  const { data, error, isLoading } = useSWR<FeedbackListResponse>(API_ROUTES.feedback.list, fetcher)
-  
-  if (isLoading) return <FeedbackListSkeleton />
-  if (error) return <ErrorMessage>Failed to load feedback. {error.message}</ErrorMessage>
-  if (!data || data.items.length === 0) return <EmptyState message="No feedback yet" />
-  
-  return (
-    <div className="space-y-3">
-      {data.items.map((item) => <FeedbackCard key={item.id} item={item} />)}
-    </div>
-  )
-}
-
-// Bad - happy path only
-export function FeedbackList() {
-  const { data } = useSWR<FeedbackListResponse>(API_ROUTES.feedback.list, fetcher)
-  return <div>{data?.items.map((item) => <FeedbackCard key={item.id} item={item} />)}</div>
-}
-```
-
-## Type safety
-
-### Strict mode required
-
-`tsconfig.json` must have `"strict": true`. Don't relax it. Every type error is a real bug.
-
-### No `any`
-
-Never use `any`. If a type is genuinely unknown, use `unknown` and narrow with type guards.
-
-```tsx
-// Good
-function parseEvent(raw: unknown): FeedbackOut | null {
-  if (typeof raw !== "object" || raw === null) return null
-  if (!("id" in raw) || typeof (raw as Record<string, unknown>).id !== "string") return null
-  return raw as FeedbackOut  // narrowed enough to assert
-}
-
-// Bad
-function parseEvent(raw: any): FeedbackOut {
-  return raw
-}
-```
-
-### API types mirror backend schemas
-
-Define API response types in `lib/api/types.ts`. They must match what the backend returns. When the backend changes, update these types in the same PR.
-
-```tsx
-// lib/api/types.ts
-export type Sentiment = "positive" | "neutral" | "negative"
-
-export type FeedbackStatus = "processing" | "completed" | "failed" | "skipped"
-
-export type FeedbackOut = {
+type FeedbackOut = {
   id: string
   text: string
   status: FeedbackStatus
@@ -413,440 +127,89 @@ export type FeedbackOut = {
   created_at: string
   updated_at: string
 }
-
-export type FeedbackListResponse = {
-  items: FeedbackOut[]
-}
-
-export type StatsOut = {
-  themes: { name: string; count: number }[]
-  sentiment_dist: Record<Sentiment, number>
-  trend: { date: string; positive: number; neutral: number; negative: number }[]
-  processing_count: number
-}
 ```
 
-### `as const` for readonly objects and arrays
-
-Use `as const` so TypeScript infers the narrowest possible type and the value is immutable.
-
-```tsx
-// Good
-export const SENTIMENT_LABELS = {
-  positive: "Positive",
-  neutral: "Neutral",
-  negative: "Negative",
-} as const
-
-// Bad - widens to Record<string, string>, loses key narrowing
-export const SENTIMENT_LABELS = {
-  positive: "Positive",
-  neutral: "Neutral",
-  negative: "Negative",
-}
-```
-
-## No magic values
-
-**Non-negotiable for Phase 2-5 code.** No inline numbers or repeated strings in components. Every tunable goes to one of three homes.
-
-### Where each kind of value lives
-
-| Type of value | Where it lives | Import path |
-|---|---|---|
-| **API route paths** | `lib/api/routes.ts` as `API_ROUTES` (`as const`). All versioned paths include `/v1/` prefix; operational endpoints (`/health`, `/ready`) stay unprefixed. | `import { API_ROUTES } from "@/lib/api/routes"` |
-| **UI timings** (polling intervals, debounces, animation, request timeouts) | `lib/constants.ts` as `UI_TIMINGS` (`as const`) | `import { UI_TIMINGS } from "@/lib/constants"` |
-| **UI dimensions** (textarea rows, default limits, layout sizes) | `lib/constants.ts` as `UI_DIMENSIONS` (`as const`) | `import { UI_DIMENSIONS } from "@/lib/constants"` |
-| **User-facing strings** (labels, placeholders, error messages, button text) | `locales/en/{common,feedback,stats}.ts` (`as const`, no barrel file) | `import { feedback } from "@/locales/en/feedback"` (direct, leaf-file imports only) |
-| **Sentiment / status visual maps** (planned) | `lib/sentiment.ts` as `SENTIMENT_STYLES`, `SENTIMENT_LABELS` (Phase 3 — not created yet) | `import { SENTIMENT_STYLES } from "@/lib/sentiment"` |
-| **API base URL** | `process.env.NEXT_PUBLIC_API_BASE_URL` (empty-string fallback) — read once in `lib/api/client.ts` | n/a — only in `client.ts` |
-| **Backend-controlled values** (page sizes, validation thresholds, max body length) | NOT in frontend code. Backend Settings owns these; frontend reads them implicitly via API behavior. | n/a |
-
-```tsx
-// Good
-import { API_ROUTES } from "@/lib/api/routes"
-import { UI_TIMINGS, UI_DIMENSIONS } from "@/lib/constants"
-import { feedback } from "@/locales/en/feedback"
-
-const { data } = useSWR(API_ROUTES.feedback, fetcher, {
-  refreshInterval: UI_TIMINGS.feedbackListRefreshMs,
-})
-return (
-  <Textarea
-    rows={UI_DIMENSIONS.pasteFormRows}
-    placeholder={feedback.pasteForm.placeholder}
-  />
-)
-
-// Bad
-const { data } = useSWR("/api/v1/feedback", fetcher, { refreshInterval: 0 })
-<Textarea rows={6} placeholder="Paste customer feedback here..." />
-```
-
-### Currently defined `lib/constants.ts` (May 2026)
-
-For reference when wiring new code — pick the existing key rather than redefining:
-
-```ts
-UI_TIMINGS = {
-  apiRequestTimeoutMs: 30_000,        // apiClient AbortController
-  healthCheckRefreshMs: 30_000,       // HealthCheck SWR
-  feedbackListRefreshMs: 0,           // FeedbackList SWR (no polling in Phase 2)
-}
-
-UI_DIMENSIONS = {
-  pasteFormRows: 6,                   // Textarea visible rows
-}
-```
-
-### Workflow when you need a new tunable or string
-
-**For a number / dimension / timing:**
-1. Add the key to `UI_TIMINGS` or `UI_DIMENSIONS` in `lib/constants.ts` with `as const` preserved.
-2. Add a one-line trailing comment explaining what consumes it.
-3. Import via `import { UI_TIMINGS } from "@/lib/constants"` and reference by name.
-
-**For a user-facing string:**
-1. Add the key to the right `locales/en/<feature>.ts` (`common` for app-wide, `feedback`/`stats` for feature-scoped).
-2. Preserve the `as const` so the type stays narrow and i18n migration stays mechanical.
-3. Direct-import the leaf file (`@/locales/en/feedback`) — no barrel file.
-
-**Never:**
-- ❌ Inline numeric literals in component JSX (`refreshInterval: 30_000`, `rows={6}`).
-- ❌ Inline user-facing strings in components (`<Button>Submit</Button>`).
-- ❌ Create a barrel file (`locales/index.ts`, `components/feedback/index.ts`) — see "Modern patterns / No barrel files" above.
-- ❌ Hardcode backend-controlled limits in the frontend. Backend Settings is the source of truth; frontend should accept whatever the API returns.
-
-### Rule of thumb
-
-- Number or non-trivial string appears **once but might be tuned** → constant.
-- Appears in **two or more files** → constant, no exceptions.
-- Is **user-facing copy** → locale file, even if it appears once.
-- Is **a Tailwind utility class** (`gap-4`, `p-6`, `h-32`) → leave inline. Those are design tokens, not magic numbers.
-
-Phase 2-5 code MUST NOT introduce new inline timing/dimension literals or hardcoded user-facing strings. Audit your own diff before commit: `grep -nE 'refreshInterval:|rows=\{|setTimeout\([^,]+,\s*[0-9]'` over your changes should return only existing `UI_TIMINGS.*` / `UI_DIMENSIONS.*` references.
+Use `as const` for readonly maps so TypeScript narrows keys (`SENTIMENT_LABELS["positive"]` → `"Positive"`, not `string`).
 
 ## Data fetching
 
-### All HTTP through the typed client
-
-`lib/api/client.ts` is the single entry point for HTTP. Components NEVER call `fetch()` directly.
-
-```tsx
-// Good
-import { apiClient } from "@/lib/api/client"
-import { API_ROUTES } from "@/lib/api/routes"
-
-const data = await apiClient.get<FeedbackListResponse>(API_ROUTES.feedback.list)
-
-// Bad - inline fetch
-const response = await fetch("http://localhost:8000/feedback")
-const data = await response.json()
-```
-
-The client handles base URL resolution, error mapping, and request ID propagation in one place.
-
-`apiClient` uses relative paths via empty-string base URL: `fetch("/v1/feedback")` becomes a same-origin request which nginx proxies to the backend. No `NEXT_PUBLIC_API_BASE_URL` needed in deployment.
-
-The `apiClient.ts` implementation includes a 30-second timeout via `AbortController`. Without this, a hung backend leaves the UI waiting forever — every fetch call must have an upper bound.
-
-### All UI data through SWR
-
-Components subscribe to data via SWR. Never `useState` + `useEffect` + `fetch` for data fetching.
-
-The SWR `fetcher` wraps `apiClient.get` so all HTTP goes through one place. Define it in `lib/api/client.ts` as `fetcher = (url) => apiClient.get(url)`.
-
-```tsx
-// Good
-const { data, error, isLoading, mutate } = useSWR(API_ROUTES.feedback.list, fetcher)
-
-// Bad - manual state management
-const [data, setData] = useState(null)
-const [error, setError] = useState(null)
-useEffect(() => {
-  fetch("/api/feedback").then((r) => r.json()).then(setData).catch(setError)
-}, [])
-```
-
-### Mutate after writes
-
-After a write operation, use SWR's `mutate(key)` to invalidate affected caches and trigger revalidation.
-
-```tsx
-// Good
-async function handleSubmit(text: string) {
-  await apiClient.post(API_ROUTES.feedback.create, { texts: [text] })
-  await mutate(API_ROUTES.feedback.list)
-  await mutate(API_ROUTES.stats.summary)
-}
-
-// Bad - manual refetch
-async function handleSubmit(text: string) {
-  await fetch("/api/feedback", { method: "POST", body: ... })
-  setRefreshKey((k) => k + 1)
-}
-```
-
-## Loading states
-
-Every async render path has a skeleton loader, not a spinner. Skeletons:
-
-- Communicate the shape of incoming content.
-- Don't shift layout when real content loads.
-- Use shadcn/ui's `Skeleton` component for consistency.
+- **All HTTP through `lib/api/client.ts`.** Components NEVER call `fetch()` directly. The client handles base URL resolution (empty-string base → same-origin → nginx proxies to backend), error mapping, and a 30-second `AbortController` timeout.
+- **All UI data through SWR.** Never `useState` + `useEffect` + `fetch` for data. SWR `fetcher = (url) => apiClient.get(url)` lives in `lib/api/client.ts`.
+- **Adaptive polling** via function-shaped `refreshInterval`: 5s when `pending_count > 0`, 30s when idle. Pattern lives in `useDashboardStats`.
+- **Mutate after writes.** After POST/PATCH/DELETE, call `mutate(key)` to invalidate caches. For paginated caches use the predicate form — see the gotcha below.
 
 ## Optimistic updates
 
-For the feedback submission flow:
+For feedback submission: show the new row immediately as `processing` → backend confirms via SSE → if submission fails, show error toast and remove the row. Makes the UI feel instant. Pattern lives in the submission hook, not scattered across components.
 
-- Show the new row immediately with status `processing`.
-- The backend confirms via SSE.
-- If submission fails, show an error and remove the row.
+## Loading states
 
-This makes the UI feel instant. The pattern lives in the submission hook, not scattered across components.
+Every async render path uses a **skeleton loader, not a spinner**. Skeletons communicate the shape of incoming content and don't shift layout when real content loads. Use shadcn/ui's `Skeleton` for consistency.
 
-## Styling
+Every component that renders async data MUST handle all four states explicitly: loading, error, empty, data. Skipping any creates broken UX.
 
-### Tailwind utilities only
-
-No custom CSS files except `globals.css` for Tailwind imports and minimal global resets. No CSS-in-JS. No CSS modules.
+## Sentiment colors via the central map
 
 ```tsx
-// Good
-<div className="flex items-center justify-between gap-4 p-4 rounded-lg border">
-  <span className="text-sm font-medium text-slate-900">{label}</span>
-  <span className="text-2xl font-bold">{value}</span>
-</div>
-
-// Bad - inline style
-<div style={{ display: "flex", padding: 16 }}>...</div>
+<Badge className={SENTIMENT_STYLES[sentiment]}>{SENTIMENT_LABELS[sentiment]}</Badge>
 ```
 
-### shadcn/ui components used as-is
+Never inline sentiment colors. Always go through `lib/sentiment.ts` so the convention stays consistent across cards, badges, charts.
 
-Don't override shadcn theme. Don't customize colors via CSS variables. Use the components as installed.
+## Testing strategy (deliberate)
 
-```tsx
-// Good
-import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+Frontend has no tests for the take-home. Visual evaluation by grader is sufficient signal for a single-user demo. Backend Tier 1 only: `test_validate.py`, `test_extract.py` (mocked Anthropic), `test_feedback_service.py` (fake repo).
 
-<Card>
-  <Badge>{label}</Badge>
-</Card>
+## Environment
 
-// Bad - custom theme override
-<Card style={{ backgroundColor: "#ff00ff" }}>...</Card>
-```
+The frontend container has no env file in deployment. `apiClient.ts` uses relative paths (`/v1/feedback`) which nginx routes to the backend on the internal docker network. `NEXT_PUBLIC_API_BASE_URL` is unset; falls back to empty-string base.
 
-### Sentiment colors via the central map
+Server-only env vars (e.g. `AUTH_SECRET` later) would live in `frontend/.env.local` without the `NEXT_PUBLIC_` prefix — stays server-side, never bundles into the browser. Running as a Node server (not static export) is what makes this distinction work.
 
-Never inline sentiment colors. Always go through `SENTIMENT_STYLES` so the convention stays consistent.
+## SSE wiring
 
-```tsx
-// Good
-import { SENTIMENT_STYLES, SENTIMENT_LABELS } from "@/lib/sentiment"
-{sentiment && (
-  <Badge className={SENTIMENT_STYLES[sentiment]}>
-    {SENTIMENT_LABELS[sentiment]}
-  </Badge>
-)}
+`useFeedbackStream({ enabled })` exposes four handler slots: `onFeedbackUpdate`, `onStatsInvalidate`, `onConnected`, `onError`. EventSource owns the reconnect loop; cleanup closes the source on unmount. **Gated on `pending_count > 0`** so we don't hold open connections for users who never submit.
 
-// Bad
-<Badge className={sentiment === "positive" ? "bg-green-100" : "bg-red-100"}>{sentiment}</Badge>
-```
+Used on:
+- `/feedback` page — predicate-based SWR cache patch on `feedback_update`, `mutate(API_ROUTES.stats)` on `stats_invalidate`. Rows visibly transition from spinning "Processing" badge to colored sentiment as workers complete.
+- `/` (dashboard) — only listens to `stats_invalidate` to refetch pending-count + KPIs. The adaptive SWR poll keeps things accurate even without SSE; SSE just shortens latency.
 
-### Spacing consistency
-
-Use Tailwind's default spacing scale. Default to `gap-4`, `p-4`, `space-y-4` everywhere unless there's a specific reason to differ. Consistent spacing reads as designed even when no design effort went in.
-
-## Hooks
-
-### Custom hooks for repeatable logic
-
-If two components need the same pattern (debounced search, SSE connection, polling), extract to a hook in `hooks/`.
-
-```tsx
-// hooks/useDebouncedValue.ts
-export function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delayMs)
-    return () => clearTimeout(timer)
-  }, [value, delayMs])
-  return debounced
-}
-```
-
-### Hooks rules
-
-- Call hooks only at the top level of a component or another hook.
-- Don't call hooks inside loops, conditions, or nested functions.
-- Hook names must start with `use`.
-
-These are React rules, not project conventions, but worth restating.
-
-### Cleanup in useEffect
-
-Always return a cleanup function from `useEffect` for subscriptions, intervals, timers, or external resources.
-
-```tsx
-// Good
-useEffect(() => {
-  const eventSource = new EventSource(url)
-  eventSource.addEventListener("message", handleMessage)
-  
-  return () => {
-    eventSource.close()
-  }
-}, [url])
-
-// Bad - leaks the connection
-useEffect(() => {
-  const eventSource = new EventSource(url)
-  eventSource.addEventListener("message", handleMessage)
-}, [url])
-```
-
-## Imports
-
-Order: React/Next.js → third-party libraries → `@/` aliases → relative imports.
-
-```tsx
-// Good
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-
-import useSWR, { mutate } from "swr"
-import { formatDistanceToNow } from "date-fns"
-
-import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { apiClient } from "@/lib/api/client"
-import { API_ROUTES } from "@/lib/api/routes"
-import { SENTIMENT_STYLES } from "@/lib/sentiment"
-import type { FeedbackOut } from "@/lib/api/types"
-
-import { FeedbackCardSkeleton } from "./FeedbackCardSkeleton"
-```
-
-Type-only imports use `import type` to make tree-shaking unambiguous.
-
-## Error handling
-
-### Error boundaries for component trees
-
-Wrap major sections in error boundaries so one component crashing does not blank the whole page. Next.js App Router provides `app/error.tsx` (route-level error boundary) and `app/not-found.tsx` (404 page) for this. **Both must exist** — without `error.tsx`, an uncaught error renders the framework default; without `not-found.tsx`, navigating to an unknown path shows a generic page.
-
-### User-friendly error messages
-
-When an error reaches the user, show something actionable. Not stack traces. Not raw error objects.
-
-```tsx
-// Good
-if (error) return <ErrorMessage>Could not load feedback. Try refreshing.</ErrorMessage>
-
-// Bad
-if (error) return <div>{JSON.stringify(error)}</div>
-```
-
-### Log unexpected errors
-
-For errors that shouldn't happen, log them so you can investigate. Use a logger module, not `console.log` in committed code.
-
-## Comments
-
-Code should be self-documenting through good naming. Comments only when WHY isn't obvious.
-
-```tsx
-// Good - explains a non-obvious choice
-// We close the SSE connection when no rows are processing
-// to avoid holding open connections for users who never submit feedback.
-useFeedbackStream({ enabled: hasProcessingItems })
-
-// Bad - restates the code
-// Set isLoading to true
-setIsLoading(true)
-```
-
-No `console.log` in committed code. No commented-out code in commits.
-
-## Accessibility basics
-
-- Every interactive element is keyboard-accessible (use `<button>`, not `<div onClick={...}>`)
-- Form inputs have associated labels
-- Images have `alt` text (or empty `alt=""` if purely decorative)
-- Focus indicators are visible (don't override Tailwind's focus rings without a replacement)
-- Color is never the only signal (sentiment cards use the label text, not just the color)
-
-These are non-negotiable. The dashboard should be navigable with keyboard alone.
-
-## Testing
-
-Frontend tests are minimal for this PoC. We test:
-
-- Pure utility functions (sentiment color mapping, date formatters)
-- Critical hooks in isolation (e.g. `useFeedbackStream` lifecycle)
-- One smoke test that the page renders without crashing
-
-Visual regression and full integration tests are out of scope for the PoC.
+`ProcessingPill` shows in the page header next to "Dashboard" when `stats.pending_count > 0`. Self-hiding (`if count <= 0 return null`) so the page can render it unconditionally.
 
 ## Gotchas
 
 Frontend-specific things we've hit. Cross-cutting gotchas (nginx restart, `.env` sync) live in the root `CLAUDE.md`.
 
-- **shadcn v4 + Tailwind v4: theme variables are full `oklch(...)` values, not raw HSL components.** Templates and StackOverflow snippets that say `hsl(var(--primary))` produce `hsl(oklch(...))` → invalid CSS, color renders as black. Use `var(--primary)` directly. Same applies to `--muted-foreground`, `--popover`, `--border`, etc.
+- **shadcn v4 + Tailwind v4 theme variables are full `oklch(...)` values, not raw HSL components.** Templates that say `hsl(var(--primary))` produce `hsl(oklch(...))` → invalid CSS, color renders as black. Use `var(--primary)` directly. Same for `--muted-foreground`, `--popover`, `--border`.
 
-- **shadcn auto-init rewrites `layout.tsx`.** `npx shadcn@latest init -d` adds a `Geist` font import + `cn(font.variable)` body className. If you re-init shadcn after Phase 1, expect `layout.tsx` to lose your customizations (locale strings, body utility classes). Diff and reconcile.
+- **shadcn auto-init rewrites `layout.tsx`.** Re-running `npx shadcn@latest init -d` adds a `Geist` font + body className override and clobbers your customizations (locale strings, body utility classes). Diff and reconcile.
 
-- **`Geist` from `next/font/google` only works on Next 15+.** On Next 14, that import fails because Geist isn't in the Google Fonts catalog. Either upgrade to Next 16 (where it's built in) or `npm install geist` and `import { GeistSans } from "geist/font/sans"`. We're on Next 16 so the built-in path works.
+- **`Geist` from `next/font/google` only works on Next 15+.** On older versions, `npm install geist` + `import { GeistSans } from "geist/font/sans"`. We're on Next 16 so the built-in path works.
 
-- **recharts v3 `Tooltip` formatter has strict types.** The runtime signature gives you `(value: ValueType | undefined, name: NameType, …) => ReactNode`. Writing `(value: number) => …` fails TypeScript. Either let TS infer (`(value) => …`) and cast inside, or match the full signature with the recharts `ValueType`/`NameType` re-exports. Same trap for the `Bar` chart's `Cell` `fill` prop and Legend's `payload` shapes.
+- **recharts v3 `Tooltip` formatter has strict types.** Runtime signature gives you `(value: ValueType | undefined, name: NameType, ...) => ReactNode`. Writing `(value: number) => ...` fails. Either let TS infer and cast inside, or match the full signature with recharts' `ValueType`/`NameType` exports. Same trap for `Bar` chart's `Cell` `fill` prop and Legend's `payload` shapes.
 
-- **recharts colors must be CSS color strings, not Tailwind utility classes.** `fill="bg-primary"` does nothing. Use `fill="var(--primary)"` for theme-aware fills, or literal hex (`fill="#1D9E75"`) when you want a fixed color regardless of theme. Sentiment colors in `SentimentTrendChart` are deliberately literal hex so positive=green/negative=red doesn't shift on dark mode.
+- **recharts colors must be CSS color strings, not Tailwind classes.** `fill="bg-primary"` does nothing. Use `fill="var(--primary)"` for theme-aware fills, or literal hex for fixed colors. Sentiment colors are deliberately literal hex so positive=green/negative=red doesn't shift on dark mode.
 
-- **`'use client'` is required for any component using SWR or `useState`.** Server components can't run hooks. Putting `useSWR` in a server component yields a build-time error. The `app/page.tsx` page itself is `'use client'` because it uses `mutate()` in a callback; otherwise default to server components.
+- **`'use client'` required for any component using SWR or `useState`.** Server components can't run hooks. `app/page.tsx` is `'use client'` because it uses `mutate()` in callbacks; otherwise default to server components.
 
-- **Optimistic SWR mutate uses `revalidate: false` for one cache, `mutate(key)` for another.** In `app/page.tsx`'s `handleCreated`: feedback list gets the new row prepended *without* revalidate (we already have it), but stats gets a plain `mutate(key)` to force a re-fetch (we'd compute it wrong locally). Don't blanket-disable revalidation across both.
+- **Optimistic SWR mutate uses different revalidate rules per cache.** In `app/page.tsx`'s `handleCreated`: feedback list gets the new row prepended *without* revalidate (we already have it); stats gets a plain `mutate(key)` to force re-fetch (we'd compute it wrong locally). Don't blanket-disable revalidation across both.
 
-- **No barrel files in `locales/`, `components/`, `hooks/`, or `lib/`.** Direct leaf-file imports only. `import { feedback } from "@/locales/en/feedback"`. The Modern Patterns section above explains why; the lint check is `find src -name "index.ts" -not -path "*/node_modules/*"` should return zero matches.
+- **EventSource doesn't reconnect on HTTP errors.** Silently retries on transient drops, but on 4xx/5xx it stops entirely. Every page that subscribes goes silent and never recovers without a hard refresh. Smoke-test SSE after deploys with `curl -N /api/v1/events`.
 
-- **recharts has no native "frozen axis" support, and the obvious "two-chart sidecar" approach silently breaks.** Tried first: render a fixed-width left chart with `<YAxis />` only and a scrollable right chart with `<YAxis hide />`. **Doesn't work** — when the YAxis takes the entire container width, recharts has zero plot area to position tick labels against, and the labels just don't render (the left chart shows as an empty box). The working pattern is **HTML-positioned axis labels** computed from shared geometry constants (top margin, bottom margin, XAxis band height, Y domain max). See `ThemeFrequencyChart.tsx`:
+- **`useFeedbackStream` deps array is `[]` on purpose.** The hook reads handlers via a ref so callers pass inline closures without re-creating the EventSource. If you put `[handlers]` in deps, every parent re-render tears down + recreates the connection — symptom: flurry of `connected` events in the log.
+
+- **Predicate-based `mutate()` for paginated caches.** On a `feedback_update` event, `mutate(specificUrl, ...)` only patches one query-param permutation. Use the predicate form: `mutate((key) => typeof key === "string" && key.startsWith(API_ROUTES.feedbackPaginated), patcher, { revalidate: false })` so every cached page gets the patch.
+
+- **recharts has no native "frozen axis" support, and the obvious "two-chart sidecar" approach silently breaks.** Rendering a fixed-width left chart with `<YAxis />` only and a scrollable right chart with `<YAxis hide />` doesn't work — recharts has zero plot area to position tick labels against, and labels just don't render. The working pattern is **HTML-positioned axis labels** computed from shared geometry constants. See `ThemeFrequencyChart.tsx`:
   ```
   plotTopPx = TOP_MARGIN_PX
   plotBottomPx = chartHeight - BOTTOM_MARGIN_PX - labelHeight
   topPx for tick T = plotBottomPx - (T / max) * (plotBottomPx - plotTopPx) - lineHalfHeight
   ```
-  Render `<span class="absolute" style={{top: topPx}}>{T}</span>` inside a `position: relative` sidecar, with the scrollable chart next to it (`overflow-x-auto`, `<YAxis hide width={0} />`, same `domain`/`ticks` so bars scale correctly). Add `<CartesianGrid horizontal vertical={false} />` so the rows visually carry from the static labels into the scrolling bars. Don't try CSS `position: sticky` on the SVG axis — it's not a separate DOM node.
+  Render `<span class="absolute" style={{top: topPx}}>{T}</span>` in a `position: relative` sidecar, with the scrollable chart next to it (`overflow-x-auto`, `<YAxis hide width={0} />`, same `domain`/`ticks` so bars scale correctly).
 
-- **Pin chart Y/X axis domains for visual stability when data scales.** Auto-scaled axes look great on a single screenshot but make day-over-day comparison impossible — a bar that meant "10 mentions" yesterday and "10 mentions" today renders at different heights when the dataset grows. Use explicit `domain={[0, MAX]}` + `ticks={[...]}` from `UI_DIMENSIONS` constants. Counts above the ceiling clip rather than rescale; document the ceiling so future readers know it's intentional.
+- **Pin chart axis domains for visual stability.** Auto-scaled axes look great on a single screenshot but make day-over-day comparison impossible — a bar that meant "10 mentions" yesterday and today renders at different heights when the dataset grows. Use explicit `domain={[0, MAX]}` + `ticks={[...]}` from `UI_DIMENSIONS` constants. Counts above the ceiling clip rather than rescale.
 
-- **High-cardinality charts need a slot-min-width strategy, not a cap on data.** If your chart can plausibly receive 50+ items (themes, days, categories), set a minimum px slot per item via `UI_DIMENSIONS.<chart>SlotMinPx`, compute inner width as `items.length × slotMinPx`, and wrap in `overflow-x-auto`. The API should return all data; the UI decides display. Capping the API to fit the chart conflates two layers and forces magic numbers into product decisions.
+- **High-cardinality charts need a slot-min-width strategy, not a cap on data.** For charts that can plausibly receive 50+ items, set a min px slot per item via `UI_DIMENSIONS.<chart>SlotMinPx`, compute inner width as `items.length × slotMinPx`, wrap in `overflow-x-auto`. The API returns all data; the UI decides display.
 
-- **Long rotated XAxis labels need `height` set explicitly.** A label like `"android 14 compatibility"` (24 chars at fontSize 11, ~144px wide) rotated -35° drops ~83px vertically. The default XAxis height is ~30px → labels clip into the next element. Reserve the right band height (`UI_DIMENSIONS.<chart>LabelHeightPx`); compute the diagonal drop with `width × sin(angle)` if you change the angle.
-
-- **EventSource doesn't reconnect on HTTP errors.** It silently retries on transient drops (network hiccups, server restart, etc.) — but on a 4xx/5xx response the browser stops retrying entirely. If the SSE endpoint starts returning 401/404/500 after a deploy, every page that subscribes goes silent and never recovers without a hard refresh. Smoke-test with `curl -N /api/v1/events` after deploys.
-
-- **`useFeedbackStream` deps array is `[]` on purpose.** The hook reads handlers via a ref (`handlersRef.current`), so callers can pass inline closures every render without re-creating the EventSource. If you put `[handlers]` in the deps, every parent re-render tears down + recreates the connection — visible as a flurry of `connected` events in the SSE log.
-
-- **Predicate-based `mutate()` for paginated caches.** On a `feedback_update` event, calling `mutate(specificUrl, ...)` only patches one query-param permutation. Pages keep different paginated URLs in the SWR cache (`?offset=0&limit=20&sentiment=positive` vs `?offset=20&limit=20`), and the matching row could be on any of them. Use the predicate form: `mutate((key) => typeof key === "string" && key.startsWith(API_ROUTES.feedbackPaginated), patcher, { revalidate: false })`. Every cached page gets the patch; non-matching rows pass through.
-
-### Real-time updates via SSE (Phase 4)
-
-`useFeedbackStream` exposes four handler slots: `onFeedbackUpdate`, `onStatsInvalidate`, `onConnected`, `onError`. EventSource owns the reconnect loop; cleanup closes the source on unmount.
-
-Used on:
-- `/feedback` page — predicate-based SWR cache patch on `feedback_update`, `mutate(API_ROUTES.stats)` on `stats_invalidate`. Rows visibly transition from spinning "Processing" badge to colored sentiment badge as workers complete.
-- `/` (dashboard) — only listens to `stats_invalidate` to refetch the pending-count + KPIs. The 5s SWR poll keeps things accurate even without SSE; SSE just shortens the latency.
-
-### Dashboard processing pill
-
-Shows in the page header next to the "Dashboard" title when `stats.pending_count > 0`. `ProcessingPill` is self-hiding (`if count <= 0 return null`) so the page can render it unconditionally.
-
-Driven by the same `/v1/stats` SWR fetch the rest of the dashboard uses (SWR deduplicates the cache key across consumers). SSE `stats_invalidate` triggers a fresh fetch on each worker completion.
-
-### Heading at page level
-
-All three routes (`/`, `/add`, `/feedback`) put their `<h1 text-2xl font-bold>` directly in `app/<route>/page.tsx`, not inside child components. StatsDashboard, PasteForm, FeedbackTable do not render their own page headings.
-
-Pattern keeps page-level concerns (heading, page-status indicators like ProcessingPill) on the page, while components stay reusable section/widget primitives that could be dropped elsewhere unchanged.
+- **Long rotated XAxis labels need explicit `height`.** A 24-char label at fontSize 11 (~144px wide) rotated -35° drops ~83px vertically. Default XAxis height ~30px → labels clip into the next element. Reserve via `UI_DIMENSIONS.<chart>LabelHeightPx`; compute diagonal drop with `width × sin(angle)`.
