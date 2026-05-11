@@ -20,7 +20,7 @@ from app.exceptions import LLMError
 from app.llm.extract import extract_insights
 from app.models.feedback import Feedback
 from app.repositories.llm_usage_repository import LlmUsageRepository
-from app.tasks._worker_session import worker_session_scope
+from app.tasks.worker_session import worker_session_scope
 from app.tasks.celery_app import celery_app
 
 log = logging.getLogger(__name__)

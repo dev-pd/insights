@@ -18,7 +18,6 @@ backend/evals/
 ├── golden/extraction.jsonl    Hand-curated test cases (~50+ — see baseline.json for current count)
 ├── run_evals.py               Async harness (JSON + --check + --report-path)
 ├── baseline.json              Thresholds + last-observed metrics + n_cases
-├── explore_edges.py           Ad-hoc probe (no grading)
 └── reports/                   Persisted JSON reports per run (`<UTC>-<version>.json`)
 
 .claude/agents/prompt-evaluator.md   Sub-agent that runs the harness
@@ -106,7 +105,7 @@ Commit message body MUST include the metric deltas in a small table — that's t
 ## Manual fallback (when not using the sub-agents)
 
 Same shape as the human-minimal loop but you drive each step:
-1. See a failure or widen coverage with `explore_edges.py`.
+1. See a failure or widen coverage by submitting probe inputs through the API/dashboard.
 2. Add/update the golden FIRST (capture the failing case before editing the prompt).
 3. Create a new version file (`extraction/v<N>.py`) — never edit a previous version.
 4. Point ACTIVE at the new version in `extraction/__init__.py`.

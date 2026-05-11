@@ -26,12 +26,12 @@ backend/app/
 │   └── prompts/
 │       ├── extraction/          immutable versioned files + __init__ ACTIVE selector
 │       └── summary/             same layout
-├── tasks/                       celery_app.py, feedback_tasks.py, _worker_session.py
+├── tasks/                       celery_app.py, feedback_tasks.py, summary_tasks.py, worker_session.py
 ├── constants.py                 FeedbackStatus, SkipReason (StrEnums)
 ├── db.py, exceptions.py, main.py
 
 backend/tests/                   pytest + pytest-asyncio
-backend/evals/                   Eval harness (run_evals.py, golden/, baseline.json, explore_edges.py)
+backend/evals/                   Eval harness (run_evals.py, golden/, baseline.json)
 backend/scripts/                 Ops scripts (stress_test.sh + DB recovery SQL)
 ```
 

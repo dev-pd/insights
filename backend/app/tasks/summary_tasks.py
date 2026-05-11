@@ -18,7 +18,7 @@ from app.core.config import get_settings
 from app.repositories.feedback_repository import FeedbackRepository
 from app.repositories.llm_usage_repository import LlmUsageRepository
 from app.services.summary_service import SummaryService
-from app.tasks._worker_session import worker_session_scope
+from app.tasks.worker_session import worker_session_scope
 from app.tasks.celery_app import celery_app
 
 log = logging.getLogger(__name__)

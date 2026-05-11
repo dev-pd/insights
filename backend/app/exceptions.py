@@ -14,6 +14,12 @@ class InputValidationError(AppError):
     status_code = 400
 
 
+class RequestTooLargeError(AppError):
+    """Request body exceeded the configured max size."""
+
+    status_code = 413
+
+
 class LLMError(AppError):
     """Base for all LLM-related failures."""
 

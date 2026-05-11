@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from app.api.deps import FeedbackServiceDep, SettingsDep
 from app.constants import FeedbackStatus
+from app.exceptions import RequestTooLargeError
 from app.schemas.feedback import FeedbackOut, FeedbackPaginatedResponse
 
 router = APIRouter()
@@ -25,14 +26,8 @@ async def create_feedback(
     settings: SettingsDep,
 ) -> FeedbackOut:
     if len(payload.text) > settings.feedback_request_max_length:
-        from fastapi import HTTPException
-
-        raise HTTPException(
-            status_code=413,
-            detail={
-                "error": "request_too_large",
-                "max_length": settings.feedback_request_max_length,
-            },
+        raise RequestTooLargeError(
+            f"Feedback text exceeds {settings.feedback_request_max_length} characters"
         )
     feedback = await service.create_feedback(payload.text)
     return FeedbackOut.model_validate(feedback)
