@@ -37,49 +37,55 @@ class SummaryService:
         self.redis = redis_client
 
     async def get_summary(self, force_refresh: bool = False) -> dict[str, Any]:
+        """Smart cache: on a cache hit, compares the EXTRACTED cohort
+        fingerprint (count + max_id) against the cached blob. Match means
+        the LLM input set is bit-identical to what produced the cache,
+        so we return the cached blob and bump TTL — no LLM call. Drift
+        means a new EXTRACTED row has joined the cohort, so we regenerate.
+
+        This guard catches both the invalidator path (cache DELd by an
+        upstream event but cohort unchanged → would otherwise burn an
+        unnecessary LLM call) and the hourly beat path (cache present,
+        same cohort → same prose). The single source of truth is the
+        fingerprint check here; callers can be dumb."""
+        settings = get_settings()
         if force_refresh:
             await self.redis.delete(SUMMARY_CACHE_KEY)
         else:
             cached_raw = await self.redis.get(SUMMARY_CACHE_KEY)
             if cached_raw is not None:
                 cached_data = json.loads(cached_raw)
-                cached_data["cached"] = True
-                return cached_data
+                count, max_id = await self.repo.extracted_cohort_fingerprint()
+                current_fp = _cohort_fingerprint(count, max_id)
+                if cached_data.get("cohort_fingerprint") == current_fp:
+                    await self.redis.expire(
+                        SUMMARY_CACHE_KEY, settings.summary_cache_ttl_seconds
+                    )
+                    log.info(
+                        "summary_cache_hit_no_llm",
+                        extra={
+                            "fingerprint": current_fp,
+                            "feedback_count": cached_data.get("feedback_count"),
+                        },
+                    )
+                    cached_data["cached"] = True
+                    return cached_data
+                log.info(
+                    "summary_cache_drift_regen",
+                    extra={
+                        "cached_fingerprint": cached_data.get("cohort_fingerprint"),
+                        "current_fingerprint": current_fp,
+                    },
+                )
 
         return await self._generate_and_cache()
 
     async def refresh_if_stale(self) -> dict[str, Any]:
-        """Beat-driven warm-cache refresh. Compares the EXTRACTED cohort
-        fingerprint to the cached blob's fingerprint:
-          - match → just bump TTL via EXPIRE (no LLM call)
-          - drift → regenerate (LLM call) and update cache
-          - cache missing → regenerate (cold path)
-
-        Replaces the previous `get_summary(force_refresh=True)` call from
-        the hourly beat task, which always burned an LLM call regardless
-        of whether the cohort had changed."""
-        settings = get_settings()
-        count, max_id = await self.repo.extracted_cohort_fingerprint()
-        current_fp = _cohort_fingerprint(count, max_id)
-
-        cached_raw = await self.redis.get(SUMMARY_CACHE_KEY)
-        if cached_raw is not None:
-            cached_data = json.loads(cached_raw)
-            if cached_data.get("cohort_fingerprint") == current_fp:
-                await self.redis.expire(
-                    SUMMARY_CACHE_KEY, settings.summary_cache_ttl_seconds
-                )
-                log.info(
-                    "summary_cache_warmed_no_llm",
-                    extra={
-                        "fingerprint": current_fp,
-                        "feedback_count": cached_data.get("feedback_count"),
-                    },
-                )
-                cached_data["cached"] = True
-                return cached_data
-
-        return await self._generate_and_cache()
+        """Beat-driven warm-cache refresh. Thin wrapper around `get_summary`
+        — the fingerprint guard lives there now, so the same drift-aware
+        behavior covers manual reads, invalidator-driven refetches, and
+        the hourly beat tick alike."""
+        return await self.get_summary(force_refresh=False)
 
     async def _generate_and_cache(self) -> dict[str, Any]:
         settings = get_settings()

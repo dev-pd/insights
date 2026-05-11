@@ -1,11 +1,12 @@
-"""Background task that debounces feedback_update events and invalidates the
-summary cache after a quiet window.
+"""Background task that debounces feedback_update events and publishes a
+`summary_invalidate` notification so the frontend refetches `/v1/summary`.
 
-Without this, the summary widget shows stale text after a burst of ingestion
-until the hourly beat regen, the cache TTL, or a manual refresh. With it, a
-batch of N items produces a single `DEL summary:current` + `summary_invalidate`
-publish once the burst settles — so the NEXT read of /v1/summary regenerates
-fresh prose without paying for N LLM calls.
+We deliberately DO NOT delete the cache here — `SummaryService.get_summary`
+is fingerprint-aware and skips the LLM call on its own when the EXTRACTED
+cohort hasn't changed. Publishing without deleting means a burst that adds
+zero new EXTRACTED rows (e.g., all-skipped non-english batch) still wakes
+the frontend, /v1/summary serves the cached blob (no LLM cost), and the UI
+remains correct.
 
 Started from the FastAPI lifespan (one task per backend process). Receives
 events from the worker via `EventChannel.FEEDBACK_UPDATE` on Redis db 0.
@@ -21,7 +22,6 @@ from app.events.pubsub import (
     EventChannel,
     publish_summary_invalidation,
 )
-from app.services.summary_service import SUMMARY_CACHE_KEY
 
 log = logging.getLogger(__name__)
 
@@ -82,12 +82,8 @@ async def run_summary_invalidator(
                 and (now - first_event_since_last_fire) >= debounce_seconds
             ):
                 try:
-                    deleted = await redis_client.delete(SUMMARY_CACHE_KEY)
                     await publish_summary_invalidation(redis_client)
-                    log.info(
-                        "summary_cache_invalidated",
-                        extra={"cache_deleted": bool(deleted)},
-                    )
+                    log.info("summary_invalidate_published")
                 except Exception as error:  # noqa: BLE001 — invalidator must keep running
                     log.warning(
                         "summary_invalidation_step_failed",
