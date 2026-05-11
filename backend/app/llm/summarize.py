@@ -45,9 +45,18 @@ async def generate_summary(
     min_items = settings.summary_min_feedback_items
 
     if len(feedback_items) < min_items:
+        extracted_count = len(feedback_items)
+        if extracted_count == 0:
+            placeholder = (
+                f"Summary will appear once at least {min_items} feedback items are extracted."
+            )
+        else:
+            placeholder = (
+                f"{extracted_count} of {min_items} extracted feedback items ready — "
+                f"summary will appear once the threshold is reached."
+            )
         return (
-            "Not enough feedback yet to generate a meaningful summary. "
-            f"Add at least {min_items} feedback items to see insights here.",
+            placeholder,
             {
                 "input_tokens": 0,
                 "output_tokens": 0,

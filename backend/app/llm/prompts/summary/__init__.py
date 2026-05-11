@@ -15,9 +15,11 @@ from app.llm.prompts.summary.v1_1 import PROMPT as V1_1_PROMPT
 from app.llm.prompts.summary.v1_1 import VERSION as V1_1_VERSION
 from app.llm.prompts.summary.v1_2 import PROMPT as V1_2_PROMPT
 from app.llm.prompts.summary.v1_2 import VERSION as V1_2_VERSION
+from app.llm.prompts.summary.v1_3 import PROMPT as V1_3_PROMPT
+from app.llm.prompts.summary.v1_3 import VERSION as V1_3_VERSION
 
-ACTIVE_PROMPT = V1_2_PROMPT
-ACTIVE_VERSION = V1_2_VERSION
+ACTIVE_PROMPT = V1_3_PROMPT
+ACTIVE_VERSION = V1_3_VERSION
 
 __all__ = [
     "ACTIVE_PROMPT",
@@ -28,4 +30,6 @@ __all__ = [
     "V1_1_VERSION",
     "V1_2_PROMPT",
     "V1_2_VERSION",
+    "V1_3_PROMPT",
+    "V1_3_VERSION",
 ]

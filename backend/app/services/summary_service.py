@@ -103,9 +103,15 @@ class SummaryService:
             "metadata": metadata,
         }
 
-        await self.redis.setex(
-            SUMMARY_CACHE_KEY,
-            settings.summary_cache_ttl_seconds,
-            json.dumps(result),
-        )
+        # input_tokens == 0 is the "not enough feedback yet" sentinel from
+        # summarize.py — no LLM call was made. Caching it would freeze the
+        # placeholder text in place until TTL/invalidator fires, even after
+        # the cohort grows past the min threshold. Skip the SET so the next
+        # read re-evaluates the cohort.
+        if metadata.get("input_tokens", 0) > 0:
+            await self.redis.setex(
+                SUMMARY_CACHE_KEY,
+                settings.summary_cache_ttl_seconds,
+                json.dumps(result),
+            )
         return result
