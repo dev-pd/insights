@@ -21,12 +21,14 @@ Prerequisites: Docker Desktop (or compatible docker + docker compose) running lo
 3. Boot the stack:
 
    ```
-   docker compose up
+   docker compose up --build
    ```
+
+   Use `--build` after any code or config change — plain `docker compose up` reuses the cached image and runs stale code, which surfaces as `ImportError` / `AttributeError` / schema-mismatch noise that disappears the moment you rebuild.
 
 4. Open http://localhost:8080
 
-First run pulls images, builds containers, and initializes the schema via SQLAlchemy `create_all()` on the postgres volume. Subsequent runs are faster. To wipe the DB: `docker compose down -v`.
+First run pulls images, builds containers, and initializes the schema via SQLAlchemy `create_all()` on the postgres volume. To wipe the DB: `docker compose down -v`. For a complete reset (containers + volumes + locally-built images + build cache): `docker compose down -v --rmi local --remove-orphans && docker builder prune -af`.
 
 ## What you'll see
 
