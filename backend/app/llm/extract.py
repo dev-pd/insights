@@ -50,6 +50,12 @@ async def extract_insights(text: str) -> tuple[ExtractionResult, dict]:
         return await client.messages.create(
             model=settings.llm_model,
             max_tokens=settings.llm_max_tokens,
+            # temperature=0 for borderline-stable extraction. "would
+            # absolutely love a dark mode!" sits on the neutral/positive
+            # boundary and flipped run-to-run at default temp=1.0 even with
+            # an explicit sentiment rule. The summary prompt deliberately
+            # uses the default temp (prose benefits from variability).
+            temperature=0,
             system=ACTIVE_PROMPT,
             messages=[{"role": "user", "content": text}],
             tools=[EXTRACT_TOOL],
