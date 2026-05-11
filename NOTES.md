@@ -27,17 +27,14 @@ Keeps CLAUDE.md tight without losing the "why."
 
 ## What didn't work, and what I changed
 
-**The stress-tester subagent that earned nothing.** I built a 215-line
+**The stress-tester subagent that earned nothing.** Built a 215-line
 `stress-tester.md` early — orchestrator for `stress_test.sh` +
-diagnostic SQL queries + cost gates. Never invoked it once across the
-build. Main Claude just ran the script and queries inline; the
-orchestration overhead was lower than spinning the agent up. Deleted it
-(commit `95a1708`). The same lesson surfaced when I dropped two
-speculative skills (`backend-patterns`, `llm-workflow`) for duplicating
-CLAUDE.md. A subagent or skill earns its slot only when actually
-invoked AND non-trivial to inline. Speculative scaffolding is harness
-bloat — and the same instinct that says "I might need this" is what
-fills the model's context with content it has to skim past every turn.
+diagnostic SQL + cost gates. Never invoked it across the build; main
+Claude just ran the script and queries inline. Deleted it
+(commit `95a1708`). Same lesson surfaced when I dropped two speculative
+skills (`backend-patterns`, `llm-workflow`) for duplicating CLAUDE.md.
+A subagent or skill earns its slot only when actually invoked AND
+non-trivial to inline. Speculative scaffolding is harness bloat.
 
 **The 429 retry-knob rabbit hole (Case Study 8).** A 100-item burst
 left 24 tasks `FAILED`. Knee-jerk: tune retries. Three tweaks shrank
