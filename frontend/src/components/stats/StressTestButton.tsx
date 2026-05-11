@@ -2,6 +2,7 @@
 
 import { ZapIcon } from "lucide-react"
 import { useState } from "react"
+import { useSWRConfig } from "swr"
 
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/useToast"
@@ -18,6 +19,7 @@ const DEFAULT_STRESS_COUNT = 100
 export function StressTestButton() {
   const [submitting, setSubmitting] = useState(false)
   const { showToast } = useToast()
+  const { mutate } = useSWRConfig()
 
   const handleClick = async () => {
     if (submitting) return
@@ -30,16 +32,20 @@ export function StressTestButton() {
       showToast(statsCopy.stressTest.successToast(result.dispatched), {
         variant: "success",
       })
-      // After this, SSE stats_invalidate will start firing as workers
-      // complete, ProcessingPill will swap in for this button, and the
-      // pending count will drain visibly.
+      // Eagerly trigger a stats refetch so ProcessingPill takes over
+      // immediately. Without this we'd wait ~1-2s for the first SSE
+      // `stats_invalidate` to fire — during which the button briefly
+      // flips back from "Adding..." to "Add 100 feedbacks" because
+      // `pendingCount` is still 0 locally. Intentionally NOT resetting
+      // `submitting` on success: the parent swaps in ProcessingPill the
+      // moment pending_count > 0, unmounting this component.
+      await mutate(API_ROUTES.stats)
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
           : statsCopy.stressTest.errorToast
       showToast(message, { variant: "error" })
-    } finally {
       setSubmitting(false)
     }
   }

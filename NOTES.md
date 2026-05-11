@@ -51,7 +51,7 @@ sections cross-reference it. Keeps CLAUDE.md tight without losing the
 **The Case Study 7 fix that wasn't a fix.** First attempt cached the
 Anthropic client keyed by `id(asyncio.get_running_loop())` — passed my
 manual smoke test, looked right on paper. A 30-item Haiku stress test
-(run via the `stress-tester` sub-agent) caught it: 29 of 30 tasks still
+(via `backend/scripts/stress_test.sh`) caught it: 29 of 30 tasks still
 emitted `llm_transient_retry`. CPython recycles memory addresses when
 objects are GC'd; `asyncio.run()` per Celery task creates+closes+GCs a
 loop each time, so the new loop kept getting the same `id()` and the
