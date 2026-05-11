@@ -84,6 +84,29 @@ that matters.
 - A drift-checker that diffs CLAUDE.md claims (API paths, folder layout,
   Settings field names) against the actual code.
 - Real CI spend monitoring on the eval workflow.
+- **Redis-backed token-bucket throttle** so workers consult a shared budget
+  before dispatching to Anthropic. CS6/CS8 deferred this; the current
+  answer is "set concurrency to 1." A token bucket lets concurrency scale
+  back up without re-hitting the TPM cap, and trivially survives tier
+  upgrades (just bump the bucket size).
+- **Process-wide event loop per Celery worker** (`worker_process_init`
+  signal). Kills the `Event loop is closed` cosmetic noise from CS8's
+  sub-issue, drops the ~1s wasted backoff per task documented in CS7,
+  and lets the httpx connection pool actually pool across calls.
+- **Streaming summary** — SSE token-stream from Anthropic to the
+  `SummaryWidget` so prose appears as the LLM writes it. The SSE
+  infrastructure is already there; this is a wiring change in
+  `summarize.py` + the widget.
+- **Persist every regenerated summary blob** keyed by cohort fingerprint
+  in a `summary_history` table. Free audit trail of how prose evolves
+  as the dataset grows; pairs naturally with the fingerprint-skip work.
+- **Alembic migrations** replacing the `Base.metadata.create_all()`
+  bootstrap. Today, any column-type change requires `docker compose
+  down -v` to drop the postgres volume. Production graduation work.
+- **Per-row cost meter** on `/feedback` and the summary widget — surface
+  `input_tokens × price + output_tokens × price` per row + per summary
+  regen, so concurrency/retry trade-off conversations stay quantified
+  instead of intuited.
 
 **On hooks/slash commands:** I didn't write any. The take-home scope had
 no recurring event-driven trigger that warranted a hook, and no

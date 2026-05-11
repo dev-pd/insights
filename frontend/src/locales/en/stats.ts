@@ -63,7 +63,7 @@ export const stats = {
     title: "Add a batch of synthetic feedback to load-test the pipeline.",
   },
   summary: {
-    title: "Today's summary",
+    title: "Today's summary (needs a few entries)",
     refreshButton: "Refresh",
     refreshing: "Refreshing...",
     refreshFailed: "Refresh failed. Try again.",
