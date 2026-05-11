@@ -61,9 +61,3 @@ export const UI_DIMENSIONS = {
    *  forcing the user to scroll the whole page on a typical desktop. */
   feedbackPageSize: 20,
 } as const
-
-export const UI_FORMATTING = {
-  /** Threshold (and divisor) for "k" formatting on token counts:
-   *  values < threshold render as-is; values >= threshold render as `${n/k}k`. */
-  tokensKThreshold: 1_000,
-} as const

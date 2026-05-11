@@ -2,11 +2,10 @@ export const stats = {
   kpis: {
     sectionTitle: "Dashboard",
     totalFeedback: "Total feedback",
-    positivePct: "Positive",
-    negativePct: "Negative",
+    positive: "Positive",
+    neutral: "Neutral",
+    negative: "Negative",
     today: "Today",
-    avgLatency: "Avg latency",
-    totalTokens: "Total tokens",
     dayOverDay: (delta: number | null) => {
       if (delta === null) return "vs yesterday: -"
       const sign = delta > 0 ? "+" : ""
@@ -18,11 +17,11 @@ export const stats = {
     // stress test where total had already jumped at dispatch.
     extractedHint: (extracted: number, skipped: number, failed: number) =>
       `${extracted} extracted, ${skipped} skipped, ${failed} failed`,
-    sentimentCountHint: (count: number) =>
-      count === 1 ? "1 feedback item" : `${count} feedback items`,
-    tokensHint: (input: number, output: number) =>
-      `${input} in / ${output} out`,
-    latencyHint: "LLM latency",
+    sentimentShareHint: (count: number, total: number) => {
+      if (total === 0) return "no extractions yet"
+      const pct = (count / total) * 100
+      return `${pct.toFixed(0)}% of extracted`
+    },
   },
   charts: {
     themeFrequency: {
