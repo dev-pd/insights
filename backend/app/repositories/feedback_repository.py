@@ -9,8 +9,6 @@ from app.models.feedback import Feedback
 
 
 class FeedbackRepository:
-    """Data access for Feedback. The only place SQLAlchemy queries live for this entity."""
-
     def __init__(self, session: AsyncSession):
         self.session = session
 
@@ -52,26 +50,10 @@ class FeedbackRepository:
         sentiment: Literal["positive", "neutral", "negative"] | None = None,
         search: str | None = None,
     ) -> tuple[list[Feedback], int]:
-        """Page of feedback plus total matching count for the pagination UI.
-
-        The total reflects the active filters, not the table size — so
-        "Showing 1-20 of 47" stays accurate when a sentiment filter or search
-        is on.
-
-        Search is a case-insensitive substring (ILIKE) match across:
-          - text (the raw feedback)
-          - themes (JSONB array)
-          - action_items (JSONB array)
-
-        ILIKE without a full-text index is fine at PoC scale (hundreds of
-        rows). Production scale moves to Postgres tsvector + GIN, or a
-        dedicated search engine. See NOTES.md for the graduation path.
-
-        For the JSONB columns we cast to Text and ILIKE against the JSON
-        serialization. It catches "any element contains substring" without
-        unnesting the array, which is what the dashboard wants. Stricter
-        per-element matching would use jsonb_array_elements / jsonb_path_exists.
-        """
+        """Returns (items, total) where total reflects active filters so
+        'Showing 1-20 of 47' stays correct under filtering. Search ILIKEs
+        across text + JSONB themes/action_items (cast to Text — catches
+        'any element contains substring' without array unnesting)."""
         base_stmt = select(Feedback)
         count_stmt = select(func.count(Feedback.id))
 
@@ -106,11 +88,7 @@ class FeedbackRepository:
     async def list_recent_for_summary(
         self, cutoff: datetime, limit: int
     ) -> list[Feedback]:
-        """Recent EXTRACTED feedback for summary generation.
-
-        Skipped/failed rows are excluded — they have no sentiment/themes for
-        the summarizer to ground in. Newest first; limit caps prompt size.
-        """
+        # EXTRACTED only — skipped/failed have no sentiment/themes to ground in.
         stmt = (
             select(Feedback)
             .where(Feedback.status == FeedbackStatus.EXTRACTED.value)
@@ -122,8 +100,7 @@ class FeedbackRepository:
         return list(result.scalars().all())
 
     async def count_in_window(self, start: datetime, end: datetime) -> int:
-        """Count feedback created in [start, end). Half-open so back-to-back
-        windows don't double-count the boundary instant."""
+        # Half-open [start, end) so back-to-back windows don't double-count.
         stmt = (
             select(func.count(Feedback.id))
             .where(Feedback.created_at >= start)
@@ -132,10 +109,7 @@ class FeedbackRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one()
 
-    # ── Stats aggregation queries ───────────────────────────────────────────
-
     async def count_by_status(self) -> dict[str, int]:
-        """Count of feedback rows grouped by status string."""
         stmt = select(Feedback.status, func.count(Feedback.id)).group_by(
             Feedback.status
         )
@@ -143,13 +117,11 @@ class FeedbackRepository:
         return {row[0]: row[1] for row in result.all()}
 
     async def count_total(self) -> int:
-        """Total feedback rows across all statuses."""
         stmt = select(func.count(Feedback.id))
         result = await self.session.execute(stmt)
         return result.scalar_one()
 
     async def sentiment_counts(self) -> dict[str, int]:
-        """Count of extracted feedback grouped by sentiment string."""
         stmt = (
             select(Feedback.sentiment, func.count(Feedback.id))
             .where(Feedback.status == FeedbackStatus.EXTRACTED.value)
@@ -162,13 +134,7 @@ class FeedbackRepository:
     async def all_themes_with_sentiment(
         self,
     ) -> list[tuple[list[str], str | None, datetime]]:
-        """Return (themes, sentiment, created_at) for all extracted feedback.
-
-        Used for in-memory aggregation of top themes and sentiment-over-time.
-        For PoC scale (a few thousand rows) in-memory aggregation is fine and
-        avoids a denormalized themes table. Production scale would replace
-        with a materialized view; documented in NOTES.md graduation path.
-        """
+        # In-memory aggregation is fine at PoC scale. Production: materialized view.
         stmt = select(
             Feedback.themes, Feedback.sentiment, Feedback.created_at
         ).where(Feedback.status == FeedbackStatus.EXTRACTED.value)

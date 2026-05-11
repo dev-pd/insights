@@ -1,17 +1,7 @@
-"""Dev-grade stress test endpoint.
-
-POST /v1/feedback/stress-test {count: int} dispatches `count` synthetic
-feedback items through the standard async pipeline. Used by the dashboard's
-"Stress test" button and by `backend/scripts/stress_test.sh` from the CLI.
-
-Server-side text generation (not frontend-built texts) so the bundle stays
-small and the same template pool is the source of truth for both call
-sites. Texts vary in length, sentiment, and theme to exercise extraction
-realistically.
-
-NOT for production: every dispatched item burns an Anthropic API call on
-the worker side; that's real $.
-"""
+"""Dev-grade stress endpoint: dispatches N synthetic feedbacks through the
+standard async pipeline. Used by the dashboard button + stress_test.sh.
+Server-side templates keep the bundle small and the pool consistent across
+call sites. NOT for production — each item burns a real Anthropic call."""
 
 import random
 
@@ -23,9 +13,7 @@ from app.api.deps import FeedbackServiceDep, SettingsDep
 router = APIRouter()
 
 
-# 25-template pool. Cycle through with a deterministic seed per call so a
-# given count produces a roughly-stable mix of sentiments/themes — easier
-# to reason about between runs.
+# Deterministic seed per count → stable sentiment/theme mix between runs.
 _FEEDBACK_TEMPLATES: tuple[str, ...] = (
     "Product quality is excellent and the shipping was super fast this week.",
     "Customer support response time has been disappointing lately. Two days for a reply.",
@@ -56,18 +44,13 @@ _FEEDBACK_TEMPLATES: tuple[str, ...] = (
 
 
 class StressTestRequest(BaseModel):
-    count: int = Field(
-        default=100,
-        ge=1,
-        description="Number of synthetic feedbacks to dispatch. Capped at "
-        "Settings.stress_test_max_count (default 200).",
-    )
+    count: int = Field(default=100, ge=1)
 
 
 class StressTestResponse(BaseModel):
-    dispatched: int = Field(description="Rows persisted in PROCESSING status and queued.")
-    skipped: int = Field(description="Rows rejected by pre-LLM validation (should be 0 with template texts).")
-    failed: int = Field(description="Rows where dispatch itself failed.")
+    dispatched: int
+    skipped: int
+    failed: int
 
 
 def _generate_texts(count: int) -> list[str]:
@@ -88,15 +71,10 @@ async def stress_test(
     service: FeedbackServiceDep,
     settings: SettingsDep,
 ) -> StressTestResponse:
-    """Dispatch N synthetic feedback items through the standard async pipeline."""
     count = min(payload.count, settings.stress_test_max_count)
     texts = _generate_texts(count)
     results = await service.create_feedback_batch(texts)
 
-    # FeedbackStatus values are checked as raw strings to avoid the import cycle
-    # vs the route's existing patterns. The service guarantees each result is
-    # one of: processing, skipped, failed (template texts never produce
-    # extracted-immediately rows because that path doesn't exist post-Phase-4).
     dispatched = sum(1 for feedback in results if feedback.status == "processing")
     skipped = sum(1 for feedback in results if feedback.status == "skipped")
     failed = sum(1 for feedback in results if feedback.status == "failed")

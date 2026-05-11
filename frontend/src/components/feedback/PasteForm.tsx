@@ -31,10 +31,8 @@ const ROWS_MULTIPLE = 12
 const SUBMITTING_TOAST_DURATION_MS = 2500
 
 function splitFeedbackTexts(text: string): string[] {
-  // Try paragraph separation first — the unambiguous case (emails, surveys,
-  // Slack copy). If there are no blank lines, fall back to single-newline
-  // splitting (spreadsheet column copy). If there are no newlines at all,
-  // treat the whole input as one feedback.
+  // Blank-line split first (paragraphs / Slack copy), then single-newline
+  // (spreadsheet columns), then treat as one feedback.
   const paragraphs = text
     .split(/\n\s*\n+/)
     .map((paragraph) => paragraph.trim())
@@ -57,14 +55,9 @@ interface PasteFormProps {
 
 export function PasteForm({ onCreated }: PasteFormProps) {
   const [text, setText] = useState("")
-  // Default to "multiple": the realistic primary use case for this app is
-  // pasting a batch of feedback at once. Single-mode is the special case —
-  // a user with one item just types it in and hits submit; the splitter
-  // returns a single-element array and the dispatch goes through
-  // /v1/feedback/batch with one text. Same outcome, no easy-to-miss mode
-  // toggle. Before this, the default of "single" silently treated any
-  // multi-paragraph paste as one row, which was the source of the
-  // "good work DEV team. nice work GTM team. went in as one feedback" bug.
+  // Default "multiple": single-mode silently lumped multi-paragraph pastes
+  // into one row (real bug seen: two distinct comments → one feedback).
+  // The splitter handles single-item input fine via /v1/feedback/batch.
   const [mode, setMode] = useState<Mode>("multiple")
   const [submitting, setSubmitting] = useState(false)
   const { showToast } = useToast()

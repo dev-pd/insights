@@ -5,13 +5,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment / .env file.
-
-    All env vars and defaults match `backend/.env.example`. Mutating settings
-    in-process is unsupported; the singleton is cached for the lifetime of the
-    process via `@lru_cache` on `get_settings()`.
-    """
-
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -26,17 +19,11 @@ class Settings(BaseSettings):
     db_max_overflow: int = Field(default=20, ge=0)
 
     redis_url: str
-    # Async Redis client pool sizing. Critical under SSE load: every
-    # connected dashboard tab holds ≥1 long-lived pubsub connection,
-    # plus short-lived connections for /v1/stats polls and /v1/summary
-    # cache reads. At max_connections=10 (the previous default), two
-    # open tabs during a 100-item stress test exhausted the pool and
-    # the backend started 500-ing with MaxConnectionsError. 50 gives
-    # plenty of headroom for 5-10 tabs + active polling.
+    # 50 sized for SSE: each tab holds ≥1 long-lived pubsub conn plus
+    # short-lived stats/summary reads. Default 10 exhausted under
+    # 2 tabs + 100-item stress test → MaxConnectionsError 500s.
     redis_max_connections: int = Field(default=50, ge=5, le=500)
-    # Connect timeout in seconds. Without this the pool can block
-    # indefinitely on a degraded Redis. 5s fails fast enough that
-    # FastAPI can return 503 before the client times out.
+    # Without this the pool can block forever on degraded Redis.
     redis_socket_connect_timeout_seconds: float = Field(default=5.0, gt=0.0)
 
     llm_model: str = "claude-haiku-4-5"
@@ -64,21 +51,15 @@ class Settings(BaseSettings):
 
     celery_broker_url: str = "redis://redis:6379/1"
     celery_result_backend: str = "redis://redis:6379/2"
-    # Lowered from 4 to 3 to stay under Haiku default RPM while keeping
-    # throughput reasonable. With per-call latency ~2s that's ~1.5 calls/s
-    # sustained vs the ~0.83 calls/s Anthropic ceiling — close enough that
-    # transient bursts are absorbed by the bumped retry budget below.
+    # 3 keeps sustained throughput (~1.5 calls/s at 2s latency) close to
+    # Haiku's ~0.83 calls/s ceiling; transient bursts absorbed by retries.
     celery_worker_concurrency: int = Field(default=3, ge=1, le=32)
     celery_task_soft_time_limit_seconds: int = Field(default=120, ge=10)
     celery_task_time_limit_seconds: int = Field(default=180, ge=10)
     celery_result_expires_seconds: int = Field(default=3600, ge=60)
     celery_beat_summary_cron_minute: int = Field(default=0, ge=0, le=59)
-    # Retry budget for extract_feedback_task. Bumped from 3/60 → 6/120
-    # so a sustained Anthropic rate-limit burst (5-10 minutes) gets
-    # absorbed instead of producing FAILED rows. The total wall-clock
-    # before giving up on a task is roughly:
-    #   sum(min(2**i, 120) for i in range(max_retries)) ≈ 5-10 min
-    # which is the right order of magnitude for "wait out a 429 storm".
+    # 6 × 120s ≈ 5-10 min total backoff window — sized to absorb a
+    # multi-minute 429 burst instead of producing FAILED rows.
     celery_extract_max_retries: int = Field(default=6, ge=0, le=20)
     celery_extract_retry_backoff_max: int = Field(default=120, ge=1, le=600)
 

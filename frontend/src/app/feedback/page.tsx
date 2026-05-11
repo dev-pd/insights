@@ -84,17 +84,11 @@ export default function FeedbackPage() {
     },
   )
 
-  // Drive the SSE subscription off pending_count. useDashboardStats polls
-  // /v1/stats with an idle-aware refresh interval (5s during a drain, 30s
-  // when idle). Dedupes with the home page's identical subscription if
-  // both tabs are open.
   const { data: stats } = useDashboardStats()
   const sseEnabled = (stats?.pending_count ?? 0) > 0
 
-  // Live update wiring. Predicate-based mutate so a single event patches
-  // every paginated key currently in the SWR cache (different offsets,
-  // filters, search strings). The matching row gets patched in place;
-  // non-matching rows pass through untouched.
+  // Predicate-based mutate so one event patches every paginated key
+  // currently cached (different offsets, filters, search strings).
   useFeedbackStream(
     {
       onFeedbackUpdate: (event) => {
@@ -108,8 +102,6 @@ export default function FeedbackPage() {
       },
       onStatsInvalidate: () => {
         mutate(API_ROUTES.stats)
-        // Stale paginated data is fine; we get fresh data on the next
-        // user action. No need to invalidate the paginated cache here.
       },
     },
     sseEnabled,

@@ -11,9 +11,6 @@ router = APIRouter()
 
 
 class FeedbackCreateRequest(BaseModel):
-    # Outer wall is enforced by Pydantic max_length to reject oversized payloads
-    # before the validator. The validator's feedback_max_length (smaller) is the
-    # business rule for "we won't process this"; this is the resource-abuse cap.
     text: str = Field(min_length=1)
 
 
@@ -28,7 +25,6 @@ async def create_feedback(
     settings: SettingsDep,
 ) -> FeedbackOut:
     if len(payload.text) > settings.feedback_request_max_length:
-        # Treat as request-too-large at the API boundary.
         from fastapi import HTTPException
 
         raise HTTPException(
@@ -48,7 +44,6 @@ async def list_feedback(
     settings: SettingsDep,
     limit: int | None = Query(default=None, ge=1, le=500),
 ) -> list[FeedbackOut]:
-    """Recent feedback. Used by dashboard widgets and optimistic-update caches."""
     effective_limit = limit if limit is not None else settings.feedback_list_default_limit
     items = await service.list_recent(limit=effective_limit)
     return [FeedbackOut.model_validate(item) for item in items]
@@ -66,7 +61,6 @@ async def list_feedback_paginated(
         description="Free-text search across feedback text, themes, and action items.",
     ),
 ) -> FeedbackPaginatedResponse:
-    """Paginated feedback for the /feedback table. Total reflects the active filters."""
     items, total = await service.list_paginated(
         offset=offset, limit=limit, sentiment=sentiment, search=q
     )
@@ -79,24 +73,17 @@ async def list_feedback_paginated(
 
 
 class FeedbackBatchRequest(BaseModel):
-    # max_length=50 caps batch size for sync processing under Anthropic rate
-    # limits and request-timeout budgets. Phase 4 raises this once Celery
-    # dispatches each text as its own task.
     texts: list[str] = Field(min_length=1, max_length=50)
 
 
 class FeedbackBatchResponse(BaseModel):
     items: list[FeedbackOut]
-    total: int = Field(description="Total items submitted (processing + skipped + failed).")
-    processing: int = Field(
-        description="Items queued for async extraction. These return with status=processing "
-        "and reach extracted via the Celery worker pool + SSE updates."
-    )
-    skipped: int = Field(description="Items rejected by pre-LLM validation.")
-    failed: int = Field(
-        description="Items where task dispatch itself failed (broker down). "
-        "Extraction-time failures don't appear here — they reach the user via SSE."
-    )
+    total: int
+    processing: int
+    skipped: int
+    # Items where task dispatch itself failed (broker down). Extraction-time
+    # failures don't appear here — they surface to the client via SSE.
+    failed: int
 
 
 @router.post(
@@ -108,12 +95,6 @@ async def create_feedback_batch(
     payload: FeedbackBatchRequest,
     service: FeedbackServiceDep,
 ) -> FeedbackBatchResponse:
-    """Submit 1-50 feedback items for async extraction.
-
-    Returns immediately with rows in PROCESSING status. Workers extract in the
-    background; frontend listens to SSE for status transitions. Per-item
-    dispatch failures are isolated.
-    """
     results = await service.create_feedback_batch(payload.texts)
 
     processing = sum(

@@ -1,10 +1,3 @@
-"""Data access for the llm_usage audit table.
-
-Single write path for all LLM call sites — extraction service, summary
-service, and (Phase 4) Celery tasks. Aggregation methods power the
-dashboard cost KPIs.
-"""
-
 from datetime import datetime, timezone
 
 from sqlalchemy import func, select
@@ -27,10 +20,8 @@ class LlmUsageRepository:
         prompt_version: str | None = None,
         feedback_id: int | None = None,
     ) -> LlmUsage:
-        """Insert one usage row. Caller's session is responsible for committing
-        — the FastAPI request-scoped session in `db.get_session` commits on
-        successful return, so callers in the request path don't need to do
-        anything beyond awaiting this method."""
+        # Flush only — caller's session commits (request DI for sync,
+        # worker_session_scope for tasks).
         usage = LlmUsage(
             call_type=call_type,
             model=model,
@@ -46,12 +37,7 @@ class LlmUsageRepository:
         return usage
 
     async def total_tokens(self, call_type: str | None = None) -> tuple[int, int]:
-        """Return (input_tokens, output_tokens) summed across usage.
-
-        Filters to a single call type when provided. Returns (0, 0) when
-        there's no data — `func.coalesce` keeps None out of the response
-        on an empty table.
-        """
+        # coalesce keeps None out of the response on an empty table.
         stmt = select(
             func.coalesce(func.sum(LlmUsage.input_tokens), 0),
             func.coalesce(func.sum(LlmUsage.output_tokens), 0),
@@ -63,8 +49,6 @@ class LlmUsageRepository:
         return (int(row[0]), int(row[1]))
 
     async def avg_latency_ms(self, call_type: str | None = None) -> float | None:
-        """Average latency across LLM calls. None when there's no data with
-        a recorded latency value."""
         stmt = select(func.avg(LlmUsage.latency_ms)).where(
             LlmUsage.latency_ms.isnot(None)
         )
@@ -75,7 +59,6 @@ class LlmUsageRepository:
         return float(value) if value is not None else None
 
     async def count(self, call_type: str | None = None) -> int:
-        """Total LLM call count, optionally filtered by type."""
         stmt = select(func.count(LlmUsage.id))
         if call_type is not None:
             stmt = stmt.where(LlmUsage.call_type == call_type)

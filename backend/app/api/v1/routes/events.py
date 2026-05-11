@@ -1,11 +1,6 @@
-"""Server-Sent Events endpoint for real-time feedback status updates.
-
-Frontend opens an EventSource at /api/v1/events. We subscribe to the
-feedback-update + stats-invalidate Redis channels and stream events to
-the browser. EventSource auto-reconnects on connection drops; we send a
-heartbeat comment every N seconds so idle connections survive proxy
-timeouts.
-"""
+"""SSE endpoint streaming feedback-update + stats-invalidate events from
+Redis pub/sub to /api/v1/events. Heartbeat comment every N seconds so idle
+connections survive nginx/proxy idle timeouts."""
 
 import asyncio
 import json
@@ -24,8 +19,7 @@ log = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Short poll inside the stream loop so we can check client-disconnect and
-# heartbeat-due frequently without buffering pub/sub messages.
+# Short timeout so the loop checks client-disconnect + heartbeat-due often.
 _PUBSUB_POLL_SECONDS = 1.0
 
 
@@ -72,8 +66,7 @@ async def _event_stream(
 
             now = asyncio.get_event_loop().time()
             if now - last_heartbeat >= heartbeat_interval_seconds:
-                # SSE comment — doesn't fire an event on the client, just
-                # keeps the connection alive through proxies.
+                # SSE comment line — no client event, keeps proxies happy.
                 yield ": heartbeat\n\n"
                 last_heartbeat = now
 
@@ -95,12 +88,6 @@ async def stream_events(
     redis_client: RedisDep,
     settings: SettingsDep,
 ) -> StreamingResponse:
-    """SSE stream of feedback status updates.
-
-    Browser uses EventSource(/api/v1/events). nginx is already configured
-    with proxy_buffering off and proxy_read_timeout 24h on /api/, which is
-    what SSE needs.
-    """
     return StreamingResponse(
         _event_stream(
             redis_client,
@@ -111,8 +98,7 @@ async def stream_events(
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            # Belt and suspenders — nginx already does proxy_buffering off,
-            # but this header tells any upstream we'd forget to configure.
+            # Belt-and-suspenders for any upstream that doesn't disable buffering.
             "X-Accel-Buffering": "no",
         },
     )

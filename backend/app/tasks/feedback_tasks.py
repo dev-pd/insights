@@ -1,11 +1,8 @@
 """Celery tasks for feedback extraction.
 
-The Celery task body runs in sync context; the actual extraction +
-DB-update + pub/sub flow is async. We bridge with `asyncio.run` per task,
-which spins up a fresh event loop, runs the body, and tears it down on
-return. For PoC scale that's fine; production with very high throughput
-might prefer a long-lived loop per worker (via `celery.signals`), but
-that's a graduation concern.
+Sync Celery body bridges to async via `asyncio.run` per task — fresh loop
+per invocation. See `client.py:get_client()` for why caching across loops
+requires object-identity comparison.
 """
 
 import asyncio
@@ -28,13 +25,11 @@ from app.tasks.celery_app import celery_app
 
 log = logging.getLogger(__name__)
 
-# Retry params resolved at module import — Celery decorator args can't be
-# late-bound. Reading from Settings keeps the source of truth in one place.
+# Resolved at import — Celery decorator args can't be late-bound.
 _retry_settings = get_settings()
 
 
 def _sync_redis_client() -> redis_sync.Redis:
-    """Sync Redis client for fire-and-forget publishes from worker context."""
     settings = get_settings()
     return redis_sync.Redis.from_url(settings.redis_url, decode_responses=True)
 
@@ -46,12 +41,10 @@ async def _mark_failed(
     error: Exception,
     context: str,
 ) -> None:
-    """Flip a row to FAILED with diagnostic metadata, then publish events.
-
-    Used by both the LLMError path (which then re-raises for autoretry) and
-    the broad-catch path (which re-raises so Celery records FAILURE).
-    Centralizes the row update + notify so we can't accidentally skip one.
-    """
+    """Centralized FAILED transition + event publish. Both the LLMError path
+    (re-raised for autoretry) and the broad-catch path (re-raised for Celery
+    FAILURE) must go through here — direct row updates would risk skipping
+    the pub/sub notify."""
     log.exception(
         "extraction_failed",
         extra={
@@ -78,7 +71,6 @@ async def _mark_failed(
 
 
 async def _do_extraction(feedback_id: int) -> dict:
-    """Async core: load row, call Anthropic, update row, publish events."""
     redis_client = _sync_redis_client()
 
     async with worker_session_scope() as session:
@@ -91,9 +83,8 @@ async def _do_extraction(feedback_id: int) -> dict:
             return {"feedback_id": feedback_id, "status": "not_found"}
 
         if feedback.status != FeedbackStatus.PROCESSING.value:
-            # Already processed (retry of a task whose first attempt succeeded
-            # after the broker thought it died, or someone manually changed
-            # status). Don't re-run extraction.
+            # Retry of a task whose first attempt already succeeded, or
+            # manual state edit. Don't re-extract.
             log.warning(
                 "feedback_not_in_processing_status",
                 extra={
@@ -109,8 +100,7 @@ async def _do_extraction(feedback_id: int) -> dict:
         try:
             result, metadata = await extract_insights(feedback.text)
         except LLMError as error:
-            # Transient/known LLM failures — flip to FAILED, notify, re-raise
-            # so Celery's autoretry (LLMError ∈ autoretry_for) can pick it up.
+            # Re-raise so autoretry can pick it up.
             await _mark_failed(
                 session,
                 redis_client,
@@ -119,17 +109,12 @@ async def _do_extraction(feedback_id: int) -> dict:
                 context="celery_task_llm_error",
             )
             raise
-        except Exception as error:  # noqa: BLE001 — last-line defense
-            # Any other exception bubbles up out of our LLM-aware handler.
-            # If we let it propagate without touching the row, the feedback
-            # stays in PROCESSING forever — that's the "orphan PROCESSING"
-            # class of bug. Flip to FAILED with diagnostic metadata first,
-            # THEN re-raise so Celery records the task FAILURE.
-            #
-            # NOTE: this Exception is NOT in autoretry_for, so Celery treats
-            # it as a permanent failure — no retry. That's correct: the
-            # things that get caught here (AttributeError, RuntimeError,
-            # KeyError, …) are our bugs, not transient network issues.
+        except Exception as error:  # noqa: BLE001
+            # Without this catch, an uncaught exception leaves the row in
+            # PROCESSING forever (orphan-row bug). Mark FAILED, then re-raise
+            # — Exception is NOT in autoretry_for, so this surfaces as a
+            # permanent Celery failure, which is correct for our bugs
+            # (AttributeError, KeyError, etc.).
             await _mark_failed(
                 session,
                 redis_client,
@@ -184,11 +169,8 @@ async def _do_extraction(feedback_id: int) -> dict:
 @celery_app.task(
     name="app.tasks.feedback_tasks.extract_feedback_task",
     bind=True,
-    # Retry only on transient errors. Validation errors / 4xx responses are
-    # our bug and shouldn't waste retry budget. LLMRateLimitError (429) is
-    # the most common trigger under stress-test load — the bumped retry
-    # budget (default 6/120 from Settings) is sized to absorb a multi-
-    # minute rate-limit burst.
+    # Transient errors only. 4xx is our bug and shouldn't burn retry budget.
+    # Settings defaults (6/120s) absorb multi-minute 429 bursts in practice.
     autoretry_for=(LLMError, TimeoutError, ConnectionError),
     retry_backoff=True,
     retry_backoff_max=_retry_settings.celery_extract_retry_backoff_max,
@@ -196,7 +178,6 @@ async def _do_extraction(feedback_id: int) -> dict:
     max_retries=_retry_settings.celery_extract_max_retries,
 )
 def extract_feedback_task(self, feedback_id: int) -> dict:
-    """Celery entry point. Bridges sync → async via asyncio.run."""
     log.info(
         "extract_feedback_task_started",
         extra={"feedback_id": feedback_id, "attempt": self.request.retries + 1},

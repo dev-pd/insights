@@ -1,11 +1,6 @@
-"""Summary service — generates and caches the dashboard AI summary.
-
-Cache strategy: a single Redis key ("summary:current") with the configured
-TTL. On cache miss we generate fresh and write back. Manual refresh forces
-regeneration by deleting the key first. We never cache LLM failures —
-caching a failure for an hour would lock the dashboard into "broken" until
-the TTL elapsed.
-"""
+"""Generates/caches the dashboard AI summary. Single Redis key with TTL;
+failures are not cached (would lock the dashboard into 'broken' for a full
+TTL when Anthropic has a bad minute)."""
 
 import json
 import logging
@@ -23,7 +18,6 @@ from app.repositories.llm_usage_repository import LlmUsageRepository
 
 log = logging.getLogger(__name__)
 
-# Identifier, not a tunable — staying as a module constant.
 SUMMARY_CACHE_KEY = "summary:current"
 
 
@@ -39,11 +33,6 @@ class SummaryService:
         self.redis = redis_client
 
     async def get_summary(self, force_refresh: bool = False) -> dict[str, Any]:
-        """Return the current summary, generating fresh if cache is empty
-        or `force_refresh` is True.
-
-        Shape: {text, generated_at, feedback_count, cached, error?, metadata?}.
-        """
         if force_refresh:
             await self.redis.delete(SUMMARY_CACHE_KEY)
         else:
@@ -77,8 +66,7 @@ class SummaryService:
         try:
             summary_text, metadata = await generate_summary(feedback_items)
         except LLMError as error:
-            # Don't cache failures — next request will retry, which is what
-            # we want when Anthropic is having a bad minute.
+            # Skip caching the error path — next request retries.
             log.exception(
                 "summary_generation_failed",
                 extra={
@@ -95,9 +83,8 @@ class SummaryService:
                 "metadata": None,
             }
 
-        # Record LLM usage. The "not enough data" path returns metadata with
-        # input_tokens=0 as a sentinel for "no actual call was made"; skip
-        # recording in that case so we don't inflate the dashboard count.
+        # input_tokens=0 is the "not enough data" sentinel — no call was
+        # made, don't record a row.
         if metadata.get("input_tokens", 0) > 0:
             await self.llm_usage_repo.record(
                 call_type=LlmCallType.SUMMARY.value,

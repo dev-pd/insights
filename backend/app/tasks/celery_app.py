@@ -1,9 +1,3 @@
-"""Celery application configuration.
-
-Centralizes all Celery-wide settings so individual task modules just
-register handlers on `celery_app` and don't repeat config.
-"""
-
 from celery import Celery
 from celery.schedules import crontab
 
@@ -22,21 +16,17 @@ celery_app = Celery(
 )
 
 celery_app.conf.update(
-    # Ack after task body returns, not on prefetch — failures requeue.
+    # Late ack + reject-on-lost: crashed workers requeue mid-task.
     task_acks_late=True,
-    # If a worker dies mid-task, the broker requeues for another worker.
     task_reject_on_worker_lost=True,
-    # One task at a time per worker process — avoid hoarding tasks that
-    # other workers could be running in parallel.
+    # One in-flight task per fork; prevents one worker hoarding the queue.
     worker_prefetch_multiplier=1,
-    # Results auto-expire so the result backend doesn't grow unbounded.
     result_expires=settings.celery_result_expires_seconds,
-    # JSON only — never accept pickle from an untrusted broker.
+    # JSON only — never pickle from an untrusted broker.
     task_serializer="json",
     result_serializer="json",
     accept_content=["json"],
-    # SIGTERM-then-SIGKILL window. Tasks get soft_time_limit seconds for
-    # graceful shutdown (cleaning up DB sessions etc), then hard kill.
+    # Soft → graceful cleanup window, hard → SIGKILL.
     task_soft_time_limit=settings.celery_task_soft_time_limit_seconds,
     task_time_limit=settings.celery_task_time_limit_seconds,
     timezone="UTC",
@@ -44,7 +34,6 @@ celery_app.conf.update(
     beat_schedule={
         "regenerate-summary-hourly": {
             "task": "app.tasks.summary_tasks.regenerate_summary_task",
-            # Every hour at the configured minute (default :00).
             "schedule": crontab(minute=settings.celery_beat_summary_cron_minute),
         },
     },

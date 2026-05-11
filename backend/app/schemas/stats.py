@@ -26,14 +26,9 @@ class SentimentTrendPoint(BaseModel):
 
 
 class TodayDelta(BaseModel):
-    """Comparison between the last 24 hours and the prior 24-hour window.
-
-    Chosen over a 7-day rolling window so the number is meaningfully different
-    from `total_feedback` even on short-lived datasets (a demo with < 7 days
-    of history would otherwise show this_week == total → looks like a bug).
-    Also aligns with the AI summary widget's 24h lookback for cohort
-    consistency between the KPI tile and the summary text.
-    """
+    """24h-vs-prior-24h volume comparison. 24h window (not 7-day) keeps the
+    number distinct from `total_feedback` on short-lived demos and matches
+    the AI summary widget's cohort."""
 
     today_count: int = Field(description="Total feedback in the last 24 hours.")
     yesterday_count: int = Field(

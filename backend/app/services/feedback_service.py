@@ -12,19 +12,6 @@ log = logging.getLogger(__name__)
 
 
 class FeedbackService:
-    """Orchestrates the validate → persist → dispatch flow.
-
-    Phase 4: feedback rows are persisted with status=PROCESSING and the
-    extraction happens in a Celery worker task. This service returns
-    immediately; the SSE pipeline pushes status updates to the frontend
-    as workers finish.
-
-    The llm_usage_repo dependency is retained even though this service no
-    longer writes usage rows directly — the dispatch boundary keeps the
-    shape stable in case a future code path (sync fallback, eval harness)
-    bypasses Celery and runs inline again.
-    """
-
     def __init__(
         self,
         repo: FeedbackRepository,
@@ -34,8 +21,6 @@ class FeedbackService:
         self.llm_usage_repo = llm_usage_repo
 
     async def create_feedback(self, text: str) -> Feedback:
-        """Validate, persist as PROCESSING, dispatch extraction task. Returns
-        immediately."""
         skip_reason = validate_feedback(text)
         if skip_reason is not None:
             log.info("feedback_skipped", extra={"skip_reason": skip_reason.value})
@@ -50,17 +35,10 @@ class FeedbackService:
             status=FeedbackStatus.PROCESSING,
         )
 
-        # CRITICAL: commit BEFORE dispatching the task. The worker picks up
-        # tasks immediately and queries the DB for the feedback row; if the
-        # request-end commit hasn't run yet, the worker sees `not_found`,
-        # logs it, returns SUCCESS to Celery, and the row stays in
-        # PROCESSING forever. We hit this exact race on a 20-item batch:
-        # tasks for the first ~15 ids landed at the worker before the
-        # request committed → 15 zombie rows.
-        #
-        # The session's request-end commit (in db.get_session) is still
-        # safe — committing here just empties the current transaction;
-        # the dependency's commit becomes a no-op.
+        # CRITICAL: commit BEFORE .delay(). Worker queries the DB
+        # immediately; if the request-end commit hasn't run, worker sees
+        # `not_found`, returns SUCCESS, row stays PROCESSING forever. Hit
+        # this on a 20-item batch — 15 zombie rows. See CASE_STUDIES.md.
         await self.repo.session.commit()
 
         try:
@@ -80,9 +58,7 @@ class FeedbackService:
                 "error": str(error),
                 "context": "task_dispatch",
             }
-            # We just committed, so we need another commit to persist the
-            # FAILED flip. Without this, the row would stay PROCESSING
-            # despite knowing the dispatch failed.
+            # Second commit needed — first commit emptied the transaction.
             await self.repo.session.commit()
 
         return feedback
@@ -102,11 +78,6 @@ class FeedbackService:
         )
 
     async def create_feedback_batch(self, texts: list[str]) -> list[Feedback]:
-        """Persist N rows as PROCESSING and dispatch N tasks.
-
-        Workers process in parallel up to `celery_worker_concurrency` (default 4).
-        Returns immediately — the frontend listens to SSE for status updates.
-        """
         results: list[Feedback] = []
         total = len(texts)
         for index, text in enumerate(texts):

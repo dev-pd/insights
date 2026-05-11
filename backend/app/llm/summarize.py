@@ -1,13 +1,6 @@
-"""LLM-based summarization of recent feedback for the dashboard widget.
-
-Distinct from `extract.py`:
-  - Different concern (aggregate analysis, not per-item extraction).
-  - Different versioning (`summary/v1` family, see `prompts/summary/`).
-  - No tool_use forcing — we want plain prose, not a JSON schema.
-
-Reuses the same Anthropic client + retry wrapper as extraction so timeout,
-rate-limit, and 5xx behaviour stay consistent across LLM workflows.
-"""
+"""Dashboard AI summary generator. Plain-prose output (no tool_use forcing
+unlike extract.py) over the `summary/` prompt family. Shares client +
+retry wrapper with extract.py."""
 
 import logging
 import time
@@ -23,17 +16,11 @@ from app.llm.prompts.summary import (
 
 log = logging.getLogger(__name__)
 
-# How much of each item's raw text we feed into the prompt. Truncates to
-# keep total prompt size bounded when N items × M chars otherwise blows
-# the budget. Tied to prompt design, not env-tunable.
+# Per-item char cap so N × text doesn't blow the prompt budget.
 MAX_FEEDBACK_TEXT_CHARS_IN_PROMPT = 300
 
 
 def _format_feedback_for_summary(feedback_items: list[dict[str, Any]]) -> str:
-    """Render the items as a numbered block the model can scan.
-
-    Keys we expect on each item: text, sentiment, themes, action_items.
-    """
     lines: list[str] = []
     for index, item in enumerate(feedback_items, start=1):
         sentiment = item.get("sentiment") or "unknown"
@@ -51,18 +38,10 @@ def _format_feedback_for_summary(feedback_items: list[dict[str, Any]]) -> str:
 async def generate_summary(
     feedback_items: list[dict[str, Any]],
 ) -> tuple[str, dict[str, Any]]:
-    """Generate a 2-3 sentence summary of recent feedback.
-
-    Returns (summary_text, metadata). Metadata mirrors the extract.py shape:
-    input/output tokens, latency, prompt_version, model, plus feedback_count.
-
-    When fewer than `summary_min_feedback_items` items are provided, returns
-    a static "not enough data" message rather than asking the model to
-    summarize a thin sample.
-
-    Raises LLMError (or a subclass) on transport / empty-response failures —
-    the caller decides whether to cache or surface the failure.
-    """
+    """Returns (summary_text, metadata). When the sample is below
+    summary_min_feedback_items, returns a static 'not enough data' string
+    with input_tokens=0 (a sentinel SummaryService uses to skip recording
+    an llm_usage row for a call that didn't happen)."""
     settings = get_settings()
     min_items = settings.summary_min_feedback_items
 

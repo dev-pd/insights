@@ -13,51 +13,30 @@ log = logging.getLogger(__name__)
 T = TypeVar("T")
 
 _client: AsyncAnthropic | None = None
-# Hold the loop OBJECT, not its id() — see the "Why object identity" note
-# below. Keeping a strong ref to one loop at a time is fine; we replace it
-# on each loop change so we never accumulate stale references.
+# Loop OBJECT (`is`/`is not`), not `id()`. See get_client() docstring.
 _client_loop: asyncio.AbstractEventLoop | None = None
 
 
 def get_client() -> AsyncAnthropic:
-    """Lazy-init module-level Anthropic client, **scoped to the current event loop**.
+    """Loop-scoped lazy-init Anthropic client. SDK retries disabled
+    (`max_retries=0`) — `call_with_retry` owns the loop for structured logs.
 
-    SDK retries disabled — we handle retries explicitly for observability.
+    Case Study 7: AsyncAnthropic wraps an httpx pool bound to the creating
+    loop. Celery's asyncio.run() builds a fresh loop per task; without
+    rebuilding on loop change, the 2nd task per fork hits a closed-loop
+    pool → APIError → retry on the live loop succeeds, costing 1s of
+    wasted backoff per task.
 
-    Why the loop check (see Case Study 7 in CASE_STUDIES.md):
-      AsyncAnthropic wraps an httpx AsyncClient whose connection pool binds
-      to the loop it was created in. Celery worker tasks run via
-      asyncio.run() — a fresh loop per task. Without this check, the SECOND
-      task in a fork would reuse a client whose pool lives on a closed loop
-      → first call raises a connection-level APIError → call_with_retry
-      catches it, backs off 1s, retries on the live loop → succeeds. The
-      symptom is a `llm_transient_retry` WARNING + 1s of wasted backoff on
-      every task after the first per fork.
-
-      Rebuilding the client when the loop changes is cheap (no DNS/TLS
-      until the first call) and eliminates the wasted retry. The previous
-      client is left for GC — its loop is closed so there's nothing to
-      explicitly aclose() on it.
-
-      On the FastAPI backend side, there's one long-lived loop, so this
-      check is a no-op (the cached loop stays current) and the client is
-      reused.
-
-    Why object identity, not id():
-      The first version of this fix compared `id(loop)`. id() returns a
-      memory-address-based int that CPython reuses when the previous object
-      is GC'd. asyncio.run() creates+closes+GCs a loop per task, and the
-      next loop very often gets the same address → same id() → the check
-      missed every rebuild. The 30-item Haiku stress test caught this:
-      29/30 tasks still showed the warning. `is`/`is not` compare the
-      Python object directly and aren't fooled by address reuse.
-    """
+    Why object identity, not `id()`: CPython recycles addresses across
+    GC'd loops. asyncio.run() creates+closes+GCs a loop per task, and the
+    next loop very often gets the same address → same id() → the check
+    missed every rebuild. A 30-item stress test confirmed: 29/30 tasks
+    still emitted the warning under id(). `is` compares the object."""
     global _client, _client_loop
     try:
         current_loop = asyncio.get_running_loop()
     except RuntimeError:
-        # Called from sync context (shouldn't happen — every caller is
-        # `async def`). Skip the loop check entirely.
+        # Sync context (shouldn't happen — all callers are `async def`).
         current_loop = None
 
     if _client is None or _client_loop is not current_loop:
@@ -67,8 +46,6 @@ def get_client() -> AsyncAnthropic:
             timeout=float(settings.llm_timeout_seconds),
             max_retries=0,
         )
-        # Replacing the ref (vs appending) — we hold at most one loop
-        # reference at a time, so no accumulation across worker lifetime.
         _client_loop = current_loop
     return _client
 
@@ -78,19 +55,9 @@ async def call_with_retry(
     max_attempts: int | None = None,
     base_delay: float | None = None,
 ) -> T:
-    """Retry wrapper with exponential backoff for transient errors.
-
-    `max_attempts` defaults to `settings.llm_max_retries`; `base_delay` to
-    `settings.llm_retry_base_delay_seconds`. Both are overridable per call
-    so callers (e.g. evals) can tighten or loosen the budget.
-
-    Retries on:
-    - APITimeoutError (network)
-    - RateLimitError (429) — longer backoff
-    - APIError with 5xx status
-
-    Does NOT retry on 4xx errors other than 429 (those are our bug).
-    """
+    """Exponential-backoff retry for transient errors only. Retries
+    APITimeoutError, RateLimitError (429, longer backoff), and APIError
+    with 5xx. Does NOT retry 4xx other than 429 — those are our bug."""
     settings = get_settings()
     if max_attempts is None:
         max_attempts = settings.llm_max_retries

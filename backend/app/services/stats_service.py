@@ -21,22 +21,13 @@ def _percentage(part: int, total: int) -> float:
 
 
 def _delta_pct(current: int, previous: int) -> float | None:
-    """Percent change vs the previous window. Returns None when previous is zero
-    (division-by-zero) so the UI can render '-' rather than infinity or NaN."""
+    # None on zero previous → UI renders '-' instead of infinity.
     if previous == 0:
         return None
     return round(((current - previous) / previous) * 100, 1)
 
 
 class StatsService:
-    """Aggregates feedback rows into a single StatsOut response.
-
-    For PoC scale (a few thousand rows), themes and sentiment trend are
-    aggregated in-memory after one fetch of all extracted feedback.
-    Production scale would replace with a materialized view or denormalized
-    themes table; see NOTES.md for the graduation path.
-    """
-
     def __init__(
         self,
         repo: FeedbackRepository,
@@ -51,7 +42,6 @@ class StatsService:
         theme_window_days = settings.stats_theme_window_days
         top_themes_limit = settings.stats_top_themes_limit
 
-        # Status counts.
         status_counts = await self.repo.count_by_status()
         total_feedback = sum(status_counts.values())
         total_extracted = status_counts.get(FeedbackStatus.EXTRACTED.value, 0)
@@ -59,7 +49,6 @@ class StatsService:
         total_failed = status_counts.get(FeedbackStatus.FAILED.value, 0)
         pending_count = status_counts.get(FeedbackStatus.PROCESSING.value, 0)
 
-        # Sentiment breakdown + percentages of extracted.
         sentiment_counts = await self.repo.sentiment_counts()
         positive = sentiment_counts.get("positive", 0)
         neutral = sentiment_counts.get("neutral", 0)
@@ -72,11 +61,9 @@ class StatsService:
         positive_pct = _percentage(positive, total_extracted)
         negative_pct = _percentage(negative, total_extracted)
 
-        # Today delta — rolling 24-hour windows anchored on `now`. Chosen over
-        # a 7-day window so the number differs from `total_feedback` even on
-        # short-lived demos (a 14-hour-old dataset would otherwise have
-        # this_week == total → looks broken). Also matches the AI summary
-        # widget's 24h lookback so the two widgets describe the same cohort.
+        # 24h windows anchored on `now` (not midnight) so on a short-lived
+        # demo `today_count != total_feedback`, and so the cohort matches
+        # the AI summary widget's 24h lookback.
         now = datetime.now(timezone.utc)
         today_start = now - timedelta(hours=24)
         yesterday_start = now - timedelta(hours=48)
@@ -88,12 +75,8 @@ class StatsService:
             delta_pct=_delta_pct(today_count, yesterday_count),
         )
 
-        # Themes + sentiment trend share one DB read.
         rows = await self.repo.all_themes_with_sentiment()
 
-        # Top themes — within the configured window only. The dashboard answers
-        # "what's hot this week", not exhaustive history. Limit caps cardinality
-        # so the side-by-side card layout stays readable.
         theme_window_start = now - timedelta(days=theme_window_days)
         theme_counter: Counter[str] = Counter()
         for themes, _sentiment, created_at in rows:
@@ -108,8 +91,7 @@ class StatsService:
             for theme, count in theme_counter.most_common(top_themes_limit)
         ]
 
-        # Daily sentiment trend over the configured window, ending today (UTC).
-        # Initialize every day in the window so the chart shows zeros, not gaps.
+        # Init every day in the window so the chart shows zeros, not gaps.
         today = now.date()
         start_date = today - timedelta(days=trend_days - 1)
         trend_buckets: dict[str, dict[str, int]] = {}
@@ -134,10 +116,8 @@ class StatsService:
             for day, counts in sorted(trend_buckets.items())
         ]
 
-        # Latency + tokens. Read from the llm_usage audit table so the
-        # totals reflect ALL LLM call types (extraction + summary + future
-        # Phase 4 work), not just the extraction calls that left metadata
-        # on a Feedback row.
+        # Read latency/tokens from llm_usage so totals cover all call types
+        # (extraction + summary), not just feedback-row metadata.
         avg_latency_ms = await self.llm_usage_repo.avg_latency_ms()
         input_tokens, output_tokens = await self.llm_usage_repo.total_tokens()
 

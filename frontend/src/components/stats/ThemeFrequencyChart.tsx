@@ -28,16 +28,12 @@ interface ThemeFrequencyChartProps {
 
 const BAR_COLOR = "var(--primary)"
 
-// Y-axis ticks generated from the configured max + step. Pinning the
-// domain keeps the chart's vertical reference stable as data grows or
-// shrinks; bars don't visually rescale just because counts moved.
 const Y_TICKS = Array.from(
   { length: UI_DIMENSIONS.themeChartYAxisMax / UI_DIMENSIONS.themeChartYAxisStep + 1 },
   (_, index) => index * UI_DIMENSIONS.themeChartYAxisStep,
 )
 
-// Shared chart geometry. The HTML Y-axis sidecar computes label positions
-// from these constants — they MUST match the BarChart's margins.
+// MUST match the BarChart margins — the HTML YAxis sidecar uses these.
 const TOP_MARGIN_PX = 8
 const BOTTOM_MARGIN_PX = 8
 
@@ -60,8 +56,7 @@ export function ThemeFrequencyChart({ themes }: ThemeFrequencyChartProps) {
     )
   }
 
-  // Themes arrive sorted desc by count. Keep that order along the X axis
-  // so the leftmost bar is the most-mentioned theme.
+  // Preserves the desc-by-count order: leftmost bar = most-mentioned.
   const data = themes.map((themeCount) => ({
     theme: themeCount.theme,
     count: themeCount.count,
@@ -73,15 +68,11 @@ export function ThemeFrequencyChart({ themes }: ThemeFrequencyChartProps) {
   const yAxisMax = UI_DIMENSIONS.themeChartYAxisMax
   const innerWidthPx = themes.length * UI_DIMENSIONS.themeChartSlotMinPx
 
-  // Compute pixel positions for Y-axis tick labels. The plot area inside
-  // the recharts BarChart starts at TOP_MARGIN_PX from the top and ends
-  // at chartHeight - BOTTOM_MARGIN_PX - labelHeight (where the XAxis band
-  // begins). Bars grow from the bottom; tick value V at fraction V/max
-  // up the plot area.
+  // Tick V renders at fraction V/max up the plot area; geometry matches
+  // the recharts plot bounds (top/bottom margins + XAxis label band).
   const plotTopPx = TOP_MARGIN_PX
   const plotBottomPx = chartHeight - BOTTOM_MARGIN_PX - labelHeight
   const plotInnerHeight = plotBottomPx - plotTopPx
-  // Roughly center 12px-fontSize labels on their tick line.
   const LABEL_VERTICAL_OFFSET_PX = 7
 
   return (
