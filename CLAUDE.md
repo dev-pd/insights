@@ -17,11 +17,10 @@ A POC for extracting structured insights from customer feedback using LLMs. Scop
 @.claude/context/architecture.md
 
 ## Where conventions live
-- **Backend rules** (Python/FastAPI/SQLAlchemy): `backend/CLAUDE.md` — auto-loads when Claude reads files under `backend/`.
+- **Backend rules** (Python/FastAPI/SQLAlchemy + the LLM module's call/retry/validate/schema/is_noise contract): `backend/CLAUDE.md` — auto-loads when Claude reads files under `backend/`.
 - **Frontend rules** (Next.js/TS/SWR): `frontend/CLAUDE.md` — auto-loads when Claude reads files under `frontend/`.
-- **LLM workflow** (extraction internals, `call_with_retry`, failure modes): `llm-workflow` skill — invoke when working in `backend/app/llm/`.
 - **Prompt iteration** (versioning, golden cases, eval gates): `prompt-engineering` skill — invoke when editing prompts or after an eval regression.
-- **Reviewer notes**: `NOTES.md` at repo root.
+- **Reviewer notes**: `NOTES.md` at repo root. Build narrative: `PHASES.md`. Production-shaped incidents: `CASE_STUDIES.md`.
 
 ## Gotchas
 

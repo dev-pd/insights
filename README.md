@@ -38,7 +38,7 @@ Paste 2–3 realistic feedback items on `/add` and watch them flow through. Drai
 
 ## Running the eval harness
 
-The eval harness scores the active extraction prompt against 20 hand-curated golden cases. Used as a CI gate and as part of the iteration workflow when bumping prompt versions.
+The eval harness scores the active extraction prompt against ~50 hand-curated golden cases (current count in `backend/evals/baseline.json`). Used as a CI gate and as part of the iteration workflow when bumping prompt versions.
 
 ```
 docker compose run --rm \

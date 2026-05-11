@@ -39,6 +39,47 @@ backend/scripts/                 Ops scripts (stress_test.sh + DB recovery SQL)
 
 Python 3.13, `uv` for package management (never `pip install` directly), `ruff` for lint/format, `pytest` for tests. Library versions pinned in `uv.lock`: FastAPI 0.136, Pydantic 2.13, SQLAlchemy 2.0.49 async, asyncpg, uvicorn 0.46, Anthropic SDK 0.100, Celery 5.6, redis-py 7.4.
 
+## LLM module (`app/llm/`)
+
+Bounded context — no HTTP, no DB, plain text in / Pydantic out. Lifts cleanly into a host codebase. Read the real files for code; this section documents the *why*.
+
+```
+app/llm/
+├── client.py     AsyncAnthropic singleton + call_with_retry wrapper
+├── extract.py    extract_insights() — tool-use extraction
+├── summarize.py  generate_summary() — prose summary over many rows
+├── schema.py     ExtractionResult Pydantic (sentiment, themes, action_items, language, is_noise)
+├── validate.py   validate_feedback() — pre-LLM cheap-rejection filter
+└── prompts/
+    ├── extraction/  immutable versioned files + __init__ ACTIVE selector
+    └── summary/     same layout
+```
+
+**Tool use as extraction (not freeform JSON).** `extract.py` forces a structured response with `tool_choice={"type": "tool", "name": "extract_insights"}`. Three reasons: Anthropic constrains the tool input to match `input_schema` (freeform JSON has no such guarantee); no markdown-fence parsing; Pydantic round-trip is the single source of truth. Field `description` strings are read by Claude as part of the prompt — write them like instructions to a human annotator. Forced tool name must match the `tools=[...]` entry exactly (use the `TOOL_NAME` constant; mismatch → `LLMSchemaError("No extract_insights tool_use in response")`).
+
+**`call_with_retry` owns the retry loop.** Anthropic SDK's built-in retries are disabled (`max_retries=0` on `AsyncAnthropic`) so we get structured per-error-class logs. Retries on `APITimeoutError`, `APIConnectionError`, 429, 5xx with exponential backoff + jitter. Does NOT retry on 4xx other than 429 — those are bugs, not transient. Maps to typed exceptions: `APITimeoutError → LLMTimeoutError`, 429 → `LLMRateLimitError`, 5xx → `LLMError`, schema mismatch → `LLMValidationError`. Bounded concurrency via `asyncio.Semaphore(settings.llm_concurrency_limit)`.
+
+**Pre-LLM validation** (`validate_feedback()` returns `SkipReason | None`):
+
+| Trigger | SkipReason |
+|---|---|
+| Stripped length < `feedback_min_length` | `TOO_SHORT` |
+| Stripped length > `feedback_max_length` | `TOO_LONG` |
+| Alpha ratio < `feedback_min_alpha_ratio` | `GIBBERISH` |
+| Empty / whitespace-only | `EMPTY` |
+| `better_profanity` hit | `PROFANITY` |
+| Regex match on override patterns ("ignore previous instructions", etc.) | `PROMPT_INJECTION` |
+
+Plus two POST-LLM skip reasons set by the worker after extraction:
+- `NON_ENGLISH_UNSUPPORTED` — when `result.language != "en"` (app is English-only for now)
+- `NOISE` — when `result.is_noise=true` (the LLM flagged the input as nonsense via the schema field; v1.7+ behavior). The other extracted fields are intentionally NOT persisted — dashboard treats it as pure noise rather than partial signal.
+
+**Skipped vs failed:**
+- `status="skipped"` — rejected pre-LLM by validator OR post-LLM by language/is_noise check. Always paired with `skip_reason`.
+- `status="failed"` — passed validator, hit terminal LLM error. `skip_reason="llm_validation_error"` etc. — paid for the call.
+
+For prompt iteration workflow (versioning, golden cases, eval gates, baseline updates): `.claude/skills/prompt-engineering/SKILL.md`.
+
 ## API router composition
 
 Sub-routers organized under `app/api/__init__.py`: `v1_router` gets `prefix="/v1"`, `ops_router` stays unprefixed. `main.py` mounts both.

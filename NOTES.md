@@ -17,19 +17,28 @@ only earns its slot when the content is genuinely project-specific.
 golden set.** Two narrow sub-agents form the loop. `edge-case-generator`
 proposes JSONL candidates for gaps; `prompt-evaluator` runs the eval,
 writes a timestamped JSON report to `evals/reports/`, reports pass/fail
-vs `baseline.json`. The loop ran three rounds across 20 candidates —
-all three playbook outcomes surfaced: most passed cleanly (prompt held),
-three forced golden refinements (overspecified subsets), and one
-exposed a real over-extraction weakness that v1.4 fixed with a new
-"one-topic discipline" rule. 20 → 40 goldens, v1.3 → v1.4,
-`overall_pass_rate` 80% → 95%. Each piece has thresholds, file paths,
-and decision criteria baked in rather than punted to the model. Rounds
-4-5 then pushed v1.4 with a 14-case red-team batch — round 4 passed
-clean, round 5 failed 3/7 and surfaced three more failure modes
-(action-items suppressed by positive sentiment, dev-API vocab missing
-from the synonym list, "works as expected" misread as positive). v1.5
-hardened all three; 39 → 53 goldens, `overall_pass_rate` held at 100%
-across the broader set.
+vs `baseline.json`. The loop ran seven rounds total. Rounds 1-3 took
+20 → 40 goldens (v1.3 → v1.4) and surfaced an over-extraction weakness
+that v1.4 fixed with a "one-topic discipline" rule (`overall_pass_rate`
+80% → 95%). Rounds 4-5 added 14 more candidates: round 5 surfaced three
+more failure modes (action-items suppressed by positive sentiment,
+dev-API vocab missing from the synonym list, "works as expected"
+misread as positive) that v1.5 hardened — 39 → 53 goldens, all metrics
+back to 100%. Round 6 tried to handle absurd inputs ("product worked
+1000 yrs ago and now is bad") two wrong ways before round 7 landed it
+right: first a brittle regex validator (rejected — only catches
+patterns I anticipated), then a v1.6 "distill into generic action item"
+rule (rejected — quietly inflated the dashboard's negative count).
+v1.7's fix is the structurally interesting one: a new `is_noise` field
+on the `ExtractionResult` schema. The model gets an explicit channel to
+say "this is noise, skip it"; the worker maps `is_noise=true` to
+`status=skipped, skip_reason=noise` (mirrors the existing
+`language!='en'` skip path). The lesson reinforced: when the LLM keeps
+producing technically-correct-but-unwanted output, the answer is often
+to give it a new output channel rather than adding more prompt rules.
+Each piece — agents, harness, baseline gate, schema field, worker
+branch — has thresholds, file paths, and decision criteria baked in
+rather than punted to the model.
 
 **3. `CASE_STUDIES.md` as a separate decision log.** Production-shaped
 incidents (Anthropic rate-limit ceiling, asyncio event-loop binding bug,

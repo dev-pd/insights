@@ -11,17 +11,18 @@ Everything about iterating prompts in this codebase: versioning, evals, baseline
 
 ```
 backend/app/llm/prompts/
-├── extraction/           __init__.py + v1.py, v1_1.py, v1_2.py, v1_3.py (ACTIVE)
-└── summary/              __init__.py + v1.py, v1_1.py, v1_2.py (ACTIVE)
+├── extraction/           __init__.py + v1.py, v1_1.py, ... vN.py — newest is ACTIVE
+└── summary/              __init__.py + v1.py, ... vM.py — newest is ACTIVE
 
 backend/evals/
-├── golden/extraction.jsonl    Hand-curated test cases (~40)
+├── golden/extraction.jsonl    Hand-curated test cases (~50+ — see baseline.json for current count)
 ├── run_evals.py               Async harness (JSON + --check + --report-path)
-├── baseline.json              Thresholds + last-observed metrics
+├── baseline.json              Thresholds + last-observed metrics + n_cases
 ├── explore_edges.py           Ad-hoc probe (no grading)
 └── reports/                   Persisted JSON reports per run (`<UTC>-<version>.json`)
 
 .claude/agents/prompt-evaluator.md   Sub-agent that runs the harness
+.claude/agents/edge-case-generator.md Sub-agent that proposes new goldens
 .github/workflows/evals.yml          CI gate (triggers on prompts/ or evals/ PRs)
 ```
 
@@ -102,34 +103,16 @@ When a round produces a new prompt version, **one atomic commit** contains all o
 
 Commit message body MUST include the metric deltas in a small table — that's the audit trail.
 
-## The legacy iteration loop (still valid for manual work)
+## Manual fallback (when not using the sub-agents)
 
-The human-minimal flow above is the preferred path. The manual sequence is:
-
-1. **See a failure** OR proactively widen coverage with `explore_edges.py` for ad-hoc probes.
-2. **Add/update a golden** capturing the failure BEFORE editing the prompt.
-3. **Create a new version file** (`extraction/v<N>.py`). DO NOT edit a previous version.
-4. **Point ACTIVE** at the new version in `extraction/__init__.py`.
-5. **Rebuild backend + worker** (both build from `./backend`; worker has its own image): `docker compose build backend worker`.
-6. **Run prompt-evaluator** or the harness directly: `docker compose run --rm -v "$(pwd)/backend/evals:/app/evals" backend python /app/evals/run_evals.py --check --report-path /app/evals/reports/AUTO`.
-7. **Analyze.** If improved → commit everything together (above). If regressed → revert ACTIVE in `__init__.py`, iterate on the new version file in place, try again.
-
-## What "commit everything together" means
-
-When a new prompt version observably beats the baseline, **one commit** contains:
-- The new version file (`extraction/v1_2.py`)
-- The `__init__.py` ACTIVE bump
-- `baseline.json` updated: `observed_at_baseline` reflects the new run, `thresholds` raised so the new floor is the new minimum
-- Any new golden cases added during diagnosis
-
-Commit message body should include the metric deltas:
-```
-sentiment_accuracy:     86.7% → 92.0%  (+5.3pp)
-theme_subset_pass_rate: 75.0% → 80.0%  (+5.0pp)
-overall_pass_rate:      66.7% → 75.0%  (+8.3pp)
-```
-
-This makes the improvement claim auditable in `git log`.
+Same shape as the human-minimal loop but you drive each step:
+1. See a failure or widen coverage with `explore_edges.py`.
+2. Add/update the golden FIRST (capture the failing case before editing the prompt).
+3. Create a new version file (`extraction/v<N>.py`) — never edit a previous version.
+4. Point ACTIVE at the new version in `extraction/__init__.py`.
+5. Rebuild backend + worker (`docker compose build backend worker`).
+6. Run the harness: `docker compose run --rm -v "$(pwd)/backend/evals:/app/evals" backend python /app/evals/run_evals.py --check --report-path /app/evals/reports/AUTO`.
+7. If improved → commit per "Per-round commit shape" above. If regressed → iterate on the new version file in place, try again.
 
 ## Adding a golden case
 
@@ -180,7 +163,10 @@ Usually it's a mix of both. Don't auto-update goldens to match every model outpu
 | `theme_count_pass_rate` | Returned ≤ max_count | Over-extraction (model returns 5 when 2 expected). |
 | `action_items_pass_rate` | Presence/absence match | Hallucinated actions on praise, OR missed actions on implied requests. |
 | `language_accuracy` | ISO code exact | Rare; non-English text not detected. |
+| `is_noise_accuracy` | LLM correctly flags absurd inputs (impossible timeframes, fiction, gibberish) via the `is_noise` schema field | False positive (real complaint flagged as noise) or false negative (nonsense leaks through to dashboard). |
 | `overall_pass_rate` | % passing ALL applicable checks | Composite — high bar, useful for "is the prompt fundamentally working". |
+
+Per-field denominators count only cases that ran that check. Cases that assert `expected_is_noise=true` short-circuit after the noise check (other fields are downstream-ignored anyway), so they don't drag down sentiment/themes/actions rates.
 
 ### Reading a failure
 
@@ -231,70 +217,11 @@ The `evals/` directory IS mounted (`-v ... :ro`), so changes to goldens and the 
 
 ## Cost notes
 
-| Model | Per eval run (15 goldens) |
-|---|---|
-| `claude-haiku-4-5` | ~$0.005 |
-| `claude-sonnet-4-6` | ~$0.05 |
-| `claude-opus-4-7` | ~$0.30 |
-
-The harness is single-threaded (sequential) — Anthropic rate limits absorb easily at 15 cases × ~1.5s/case ≈ 25s wall clock for Haiku. Bumping to 50 goldens triples cost and wall clock proportionally.
-
-## Common iteration patterns
-
-### Pattern 1: targeted sentiment fix
-
-You see a class of cases ("would love to see X" type feature requests) being misclassified as positive instead of neutral. The fix is a one-line prompt addition:
-
-```
-Sentiment guidelines:
-  - Classify polite feature suggestions ("would love X", "could you Y") as
-    neutral, not positive — enthusiastic language doesn't make a request
-    into praise.
-```
-
-Add 2-3 golden cases covering this class, bump the version, run the eval, check the sentiment_accuracy delta.
-
-### Pattern 2: theme consistency push
-
-You see `theme_subset_pass_rate` failing because the model uses near-synonyms inconsistently ("support" / "customer service" / "service team"). The v1.1 prompt already pushes canonical names, but not strongly enough. Add stronger examples:
-
-```
-Theme canonicalization (STRICT):
-  - "customer service", "service team", "support staff" → "support"
-  - "shipping speed", "delivery time", "shipping delays" → "shipping"
-  - "pricing tiers", "plan pricing", "subscription pricing" → "pricing"
-```
-
-### Pattern 3: action-item hallucination
-
-The model invents action items for pure praise ("Great product!" → action: "continue to manufacture great products"). The fix:
-
-```
-Action items — return ONLY when the feedback names a specific, concrete
-change the company should make. Do NOT return action items for praise,
-generic positive feedback, or vague suggestions without a clear ask.
-```
-
-## The full generator → evaluator loop
-
-For proactive coverage improvement (not just reactive bug-fixing), the two sub-agents form a pipeline:
-
-```
-edge-case-generator → human review → append to goldens → prompt-evaluator → metric report
-                                                                                  │
-                                                                                  ▼
-                                                  pass    fail
-                                                   │       │
-                                                   ▼       ▼
-                                                commit   iterate prompt → loop
-```
-
-`edge-case-generator` reads the existing goldens + active prompt and emits JSONL candidates covering gaps it finds in the coverage taxonomy. It NEVER writes files — a human picks which candidates to keep. Selected lines get appended to `extraction.jsonl`. `prompt-evaluator` then runs the eval to see whether the live prompt already handles them. If everything still passes the baseline, the new goldens lock in current behavior; if anything fails, that's the signal to iterate the prompt (back to step 3 of the iteration loop).
+Per eval run scales with N goldens × per-call cost. At Haiku default tier (~50 RPM, ~$0.0001/call), a 50-case run costs ~$0.005 and takes ~60s wall-clock. Sonnet is ~10× and Opus ~60×. Run with the model you'll ship the prompt for — same prompt scores differently on different models.
 
 ## See also
 
-- `backend/CLAUDE.md` — overall backend conventions
-- `.claude/skills/llm-workflow/SKILL.md` — broader LLM call infrastructure (retries, cost tracking, tool use)
-- `.claude/agents/edge-case-generator.md` — proposes new goldens (proposal half of the loop)
-- `.claude/agents/prompt-evaluator.md` — runs the eval against the active prompt (validation half)
-- `CASE_STUDIES.md` — incidents that informed prompt design (Case Study 7's loop-identity bug was prompt-adjacent — found via the eval-style observation pattern)
+- `backend/CLAUDE.md` § LLM module — call/retry/validate/schema contract; failure modes; what triggers `NOISE` vs `NON_ENGLISH_UNSUPPORTED` vs `*_ERROR`.
+- `.claude/agents/edge-case-generator.md` — proposes new goldens.
+- `.claude/agents/prompt-evaluator.md` — runs the eval against the active prompt.
+- `CASE_STUDIES.md` — incidents that informed prompt + harness design.
