@@ -27,11 +27,19 @@ interface ThemeFrequencyChartProps {
 }
 
 const BAR_COLOR = "var(--primary)"
-// Reserve enough left-axis width for long theme labels ("realtime
-// collaboration", "keyboard shortcuts") to render unwrapped.
-const Y_AXIS_LABEL_WIDTH_PX = 140
+// 100px matches SentimentTrendChart's YAxis width so the two side-by-side
+// chart cards have their plot areas (and zero ticks) aligned at the same X.
+const Y_AXIS_LABEL_WIDTH_PX = 100
 const ROW_HEIGHT_PX = 28
 const VERTICAL_PADDING_PX = 24
+// Truncate theme labels that would overflow the 100px band.
+const MAX_LABEL_CHARS = 16
+
+function truncateLabel(label: string): string {
+  return label.length > MAX_LABEL_CHARS
+    ? `${label.slice(0, MAX_LABEL_CHARS - 1)}…`
+    : label
+}
 
 export function ThemeFrequencyChart({ themes }: ThemeFrequencyChartProps) {
   if (themes.length === 0) {
@@ -104,6 +112,7 @@ export function ThemeFrequencyChart({ themes }: ThemeFrequencyChartProps) {
                 stroke="var(--muted-foreground)"
                 width={Y_AXIS_LABEL_WIDTH_PX}
                 interval={0}
+                tickFormatter={truncateLabel}
               />
               <Tooltip
                 contentStyle={{

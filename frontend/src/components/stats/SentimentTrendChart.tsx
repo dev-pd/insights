@@ -100,7 +100,9 @@ export function SentimentTrendChart({ points }: SentimentTrendChartProps) {
                 allowDecimals={false}
                 tick={{ fontSize: 11 }}
                 stroke="var(--muted-foreground)"
-                width={28}
+                // 100px matches ThemeFrequencyChart's Y axis so the two
+                // side-by-side chart cards align their X-axis zero points.
+                width={100}
               />
               <Tooltip
                 contentStyle={{

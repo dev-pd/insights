@@ -68,23 +68,23 @@ export function FeedbackTable({ items }: FeedbackTableProps) {
   if (items.length === 0) return null
 
   return (
-    <div className="rounded-md border overflow-hidden">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50 border-b">
+    <div className="rounded-md border">
+      <table className="w-full text-sm border-separate border-spacing-0">
+        <thead className="bg-muted">
           <tr>
-            <th className="text-left font-medium text-muted-foreground px-3 py-2 w-24">
+            <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 w-24 border-b">
               {feedbackCopy.table.columnTime}
             </th>
-            <th className="text-left font-medium text-muted-foreground px-3 py-2 w-32">
+            <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 w-32 border-b">
               {feedbackCopy.table.columnSentiment}
             </th>
-            <th className="text-left font-medium text-muted-foreground px-3 py-2 hidden md:table-cell">
+            <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 hidden md:table-cell border-b">
               {feedbackCopy.table.columnThemes}
             </th>
-            <th className="text-left font-medium text-muted-foreground px-3 py-2">
+            <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 border-b">
               {feedbackCopy.table.columnPreview}
             </th>
-            <th className="w-12 px-3 py-2" aria-hidden="true" />
+            <th className="sticky top-0 z-10 bg-muted w-12 px-3 py-2 border-b" aria-hidden="true" />
           </tr>
         </thead>
         <tbody>
