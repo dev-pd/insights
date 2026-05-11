@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     llm_timeout_seconds: int = Field(default=30, ge=1)
     llm_max_retries: int = Field(default=3, ge=0, le=10)
     llm_retry_base_delay_seconds: float = Field(default=1.0, gt=0.0)
+    # Caps how long a single 429 retry can park a worker. Anthropic's
+    # retry-after on token-window 429s is typically <60s; 90s leaves headroom.
+    llm_retry_backoff_max_seconds: float = Field(default=90.0, gt=0.0, le=600.0)
     llm_concurrency_limit: int = Field(default=5, ge=1)
 
     feedback_min_length: int = Field(default=10, ge=1)
@@ -44,10 +47,17 @@ class Settings(BaseSettings):
     stats_top_themes_limit: int = Field(default=10, ge=1, le=200)
 
     summary_cache_ttl_seconds: int = Field(default=3600, ge=60, le=86400)
+    # Debounce window for the summary cache invalidator. Worker emits a
+    # feedback_update event per extracted/skipped/failed row; the invalidator
+    # waits this many seconds of quiet before deleting the cache key — so a
+    # 100-item burst collapses into ONE LLM regen on the next /summary read.
+    summary_invalidation_debounce_seconds: int = Field(default=30, ge=1, le=300)
     summary_lookback_hours: int = Field(default=24, ge=1, le=168)
     summary_max_feedback_items: int = Field(default=50, ge=1, le=500)
     summary_min_feedback_items: int = Field(default=3, ge=1, le=50)
-    summary_max_tokens: int = Field(default=300, ge=50, le=2048)
+    # 120 tokens ≈ 480 chars — safety net under the v1.3 prompt's 340-char rule.
+    # Lower than v1.2 (300) because the summary widget clips with line-clamp-4.
+    summary_max_tokens: int = Field(default=120, ge=50, le=2048)
 
     celery_broker_url: str = "redis://redis:6379/1"
     celery_result_backend: str = "redis://redis:6379/2"
@@ -58,10 +68,15 @@ class Settings(BaseSettings):
     celery_task_time_limit_seconds: int = Field(default=180, ge=10)
     celery_result_expires_seconds: int = Field(default=3600, ge=60)
     celery_beat_summary_cron_minute: int = Field(default=0, ge=0, le=59)
-    # 6 × 120s ≈ 5-10 min total backoff window — sized to absorb a
-    # multi-minute 429 burst instead of producing FAILED rows.
-    celery_extract_max_retries: int = Field(default=6, ge=0, le=20)
+    # 12 retries × up to 120s with jitter ≈ ~10 min median total backoff —
+    # sized to ride out a 100-item burst against a 50k-token/min org cap
+    # (≈3 min drain) without producing FAILED rows. 6 was too tight.
+    celery_extract_max_retries: int = Field(default=12, ge=0, le=20)
     celery_extract_retry_backoff_max: int = Field(default=120, ge=1, le=600)
+    # Initial backoff factor for celery autoretry. Default 1 with retry_jitter
+    # gives random(0, 1) on first retry → near-instant re-fire that just
+    # re-trips a token-bucket 429. 10s floor pushes first retry to random(0, 10).
+    celery_extract_retry_backoff_base: int = Field(default=10, ge=1, le=120)
 
     stress_test_max_count: int = Field(default=200, ge=1, le=1000)
 

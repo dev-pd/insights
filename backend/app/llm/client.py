@@ -12,6 +12,21 @@ log = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
+
+def _parse_retry_after(error: RateLimitError) -> float | None:
+    response = getattr(error, "response", None)
+    headers = getattr(response, "headers", None)
+    if headers is None:
+        return None
+    raw = headers.get("retry-after")
+    if raw is None:
+        return None
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if value >= 0 else None
+
 _client: AsyncAnthropic | None = None
 # Loop OBJECT (`is`/`is not`), not `id()`. See get_client() docstring.
 _client_loop: asyncio.AbstractEventLoop | None = None
@@ -81,10 +96,23 @@ async def call_with_retry(
             last_error = e
             if attempt == max_attempts - 1:
                 raise LLMRateLimitError(str(e)) from e
-            delay = base_delay * (2**attempt) * 2
+            # Anthropic returns `retry-after` (seconds) on 429. Honor it
+            # instead of guessing — the server knows when the token bucket
+            # refills. Cap at retry_backoff_max so a pathological header
+            # can't pin a worker forever.
+            retry_after = _parse_retry_after(e)
+            cap = settings.llm_retry_backoff_max_seconds
+            if retry_after is not None:
+                delay = min(retry_after, cap)
+            else:
+                delay = min(base_delay * (2**attempt) * 2, cap)
             log.warning(
                 "llm_rate_limit_retry",
-                extra={"attempt": attempt + 1, "delay": delay},
+                extra={
+                    "attempt": attempt + 1,
+                    "delay": delay,
+                    "retry_after_header": retry_after,
+                },
             )
             await asyncio.sleep(delay)
         except APIError as e:

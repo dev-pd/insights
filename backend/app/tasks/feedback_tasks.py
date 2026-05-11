@@ -211,7 +211,7 @@ async def _do_extraction(feedback_id: int) -> dict:
     bind=True,
     # Transient errors only. 4xx is our bug; don't burn retry budget on it.
     autoretry_for=(LLMError, TimeoutError, ConnectionError),
-    retry_backoff=True,
+    retry_backoff=_retry_settings.celery_extract_retry_backoff_base,
     retry_backoff_max=_retry_settings.celery_extract_retry_backoff_max,
     retry_jitter=True,
     max_retries=_retry_settings.celery_extract_max_retries,
