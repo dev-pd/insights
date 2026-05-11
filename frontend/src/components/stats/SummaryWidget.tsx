@@ -1,6 +1,6 @@
 "use client"
 
-import { RefreshCwIcon, SparklesIcon } from "lucide-react"
+import { Loader2Icon, RefreshCwIcon, SparklesIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 import useSWR from "swr"
 
@@ -149,25 +149,38 @@ export function SummaryWidget() {
 
   const minutes = minutesSince(data.generated_at)
   const hasError = Boolean(data.error)
+  // input_tokens==0 means the backend returned the "waiting for threshold"
+  // sentinel (no LLM call). Pair it with a spinner. We also keep the
+  // spinner visible while there are still pending feedbacks being
+  // processed in the background — the summary may regenerate as new
+  // items finish, and a visible spinner tells the user something is
+  // still happening.
+  const isAwaitingThreshold = data.metadata?.input_tokens === 0
+  const showSpinner = !hasError && (isAwaitingThreshold || pendingCount > 0)
 
   return (
     <Card>
       <WidgetHeader refreshing={refreshing} onRefresh={handleRefresh} />
       <CardContent className="flex flex-col gap-3">
-        <p
-          className={cn(
-            "text-sm min-h-[88px]",
-            hasError
-              ? "text-destructive"
-              : "leading-relaxed text-foreground line-clamp-4",
+        <div className="flex items-start gap-2 min-h-[88px]">
+          {showSpinner && (
+            <Loader2Icon className="size-4 mt-0.5 shrink-0 animate-spin text-muted-foreground" />
           )}
-        >
-          {hasError ? statsCopy.summary.error : data.text}
-        </p>
+          <p
+            className={cn(
+              "text-sm",
+              hasError
+                ? "text-destructive"
+                : "leading-relaxed text-foreground line-clamp-4",
+            )}
+          >
+            {hasError ? statsCopy.summary.error : data.text}
+          </p>
+        </div>
 
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span>{statsCopy.summary.updatedAgo(minutes)}</span>
-          {data.cached && (
+          {data.cached && !isAwaitingThreshold && (
             <>
               <span aria-hidden="true">·</span>
               <span>{statsCopy.summary.fromCache}</span>

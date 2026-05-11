@@ -45,16 +45,11 @@ async def generate_summary(
     min_items = settings.summary_min_feedback_items
 
     if len(feedback_items) < min_items:
-        extracted_count = len(feedback_items)
-        if extracted_count == 0:
-            placeholder = (
-                f"Summary will appear once at least {min_items} feedback items are extracted."
-            )
-        else:
-            placeholder = (
-                f"{extracted_count} of {min_items} extracted feedback items ready — "
-                f"summary will appear once the threshold is reached."
-            )
+        # Single static line — no hardcoded thresholds in user copy. The
+        # frontend pairs this with a spinner (sourced from input_tokens==0
+        # in metadata) so the "waiting" state is obvious without exposing
+        # the min-items number, which is an internal tunable.
+        placeholder = "Generating summary — extracting customer feedback in the background."
         return (
             placeholder,
             {
