@@ -19,12 +19,12 @@ class ExtractionResult(BaseModel):
     )
     themes: list[str] = Field(
         description=(
-            "Topical phrases capturing what the feedback is about. "
+            "1-3 topical phrases capturing what the feedback is about. "
             "Lowercased noun phrases, 1-3 words each. "
             "Examples: 'shipping speed', 'customer service', 'pricing'."
         ),
         min_length=0,
-        max_length=8,
+        max_length=3,
     )
     action_items: list[str] = Field(
         default_factory=list,
