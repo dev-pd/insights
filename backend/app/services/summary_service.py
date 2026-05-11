@@ -21,6 +21,10 @@ log = logging.getLogger(__name__)
 SUMMARY_CACHE_KEY = "summary:current"
 
 
+def _cohort_fingerprint(count: int, max_id: int | None) -> str:
+    return f"{count}:{max_id or 0}"
+
+
 class SummaryService:
     def __init__(
         self,
@@ -39,6 +43,39 @@ class SummaryService:
             cached_raw = await self.redis.get(SUMMARY_CACHE_KEY)
             if cached_raw is not None:
                 cached_data = json.loads(cached_raw)
+                cached_data["cached"] = True
+                return cached_data
+
+        return await self._generate_and_cache()
+
+    async def refresh_if_stale(self) -> dict[str, Any]:
+        """Beat-driven warm-cache refresh. Compares the EXTRACTED cohort
+        fingerprint to the cached blob's fingerprint:
+          - match → just bump TTL via EXPIRE (no LLM call)
+          - drift → regenerate (LLM call) and update cache
+          - cache missing → regenerate (cold path)
+
+        Replaces the previous `get_summary(force_refresh=True)` call from
+        the hourly beat task, which always burned an LLM call regardless
+        of whether the cohort had changed."""
+        settings = get_settings()
+        count, max_id = await self.repo.extracted_cohort_fingerprint()
+        current_fp = _cohort_fingerprint(count, max_id)
+
+        cached_raw = await self.redis.get(SUMMARY_CACHE_KEY)
+        if cached_raw is not None:
+            cached_data = json.loads(cached_raw)
+            if cached_data.get("cohort_fingerprint") == current_fp:
+                await self.redis.expire(
+                    SUMMARY_CACHE_KEY, settings.summary_cache_ttl_seconds
+                )
+                log.info(
+                    "summary_cache_warmed_no_llm",
+                    extra={
+                        "fingerprint": current_fp,
+                        "feedback_count": cached_data.get("feedback_count"),
+                    },
+                )
                 cached_data["cached"] = True
                 return cached_data
 
@@ -94,10 +131,15 @@ class SummaryService:
                 feedback_id=None,
             )
 
+        # Cohort fingerprint at generation time. Used by refresh_if_stale()
+        # to decide whether a later beat tick can skip the LLM call.
+        cohort_count, cohort_max_id = await self.repo.extracted_cohort_fingerprint()
+
         result: dict[str, Any] = {
             "text": summary_text,
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "feedback_count": len(feedback_items),
+            "cohort_fingerprint": _cohort_fingerprint(cohort_count, cohort_max_id),
             "cached": False,
             "error": None,
             "metadata": metadata,

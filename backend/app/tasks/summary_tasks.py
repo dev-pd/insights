@@ -1,8 +1,10 @@
 """Beat-scheduled task to keep the AI summary cache warm.
 
 Runs every hour at the configured minute (see celery_app.beat_schedule).
-By regenerating before the cache TTL expires, the dashboard never has a
-cold-cache load — users always see an instant summary.
+Calls `refresh_if_stale()` rather than `get_summary(force_refresh=True)`:
+if the EXTRACTED cohort fingerprint matches the cached blob's, we just
+bump the TTL via EXPIRE — no LLM call burned. The LLM only fires when
+the cohort has actually drifted since the last regeneration.
 
 This is a cache-warming concern, not a correctness one. Failures don't
 re-raise (next hour will retry naturally), so the task always returns
@@ -36,11 +38,12 @@ async def _do_regenerate_summary() -> dict:
             feedback_repo = FeedbackRepository(session)
             usage_repo = LlmUsageRepository(session)
             service = SummaryService(feedback_repo, usage_repo, redis_client)
-            result = await service.get_summary(force_refresh=True)
+            result = await service.refresh_if_stale()
             await session.commit()
             return {
-                "regenerated": True,
+                "regenerated": not result.get("cached", False),
                 "feedback_count": result.get("feedback_count", 0),
+                "fingerprint": result.get("cohort_fingerprint"),
                 "ts": result.get("generated_at"),
             }
     finally:

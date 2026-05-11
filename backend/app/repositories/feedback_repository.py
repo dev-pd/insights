@@ -99,6 +99,21 @@ class FeedbackRepository:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
+    async def extracted_cohort_fingerprint(self) -> tuple[int, int | None]:
+        """Returns (count, max_id) for EXTRACTED rows. Used as a cheap
+        'has the summary input cohort changed' fingerprint so the hourly
+        beat regen can skip the LLM call when nothing meaningful changed.
+        Two numbers are enough: count grows only when a new row reaches
+        EXTRACTED, max_id changes only when a newer row joins the cohort —
+        both conditions are equivalent to 'cohort has drift'."""
+        stmt = select(
+            func.count(Feedback.id),
+            func.max(Feedback.id),
+        ).where(Feedback.status == FeedbackStatus.EXTRACTED.value)
+        result = await self.session.execute(stmt)
+        row = result.one()
+        return (row[0], row[1])
+
     async def count_in_window(self, start: datetime, end: datetime) -> int:
         # Half-open [start, end) so back-to-back windows don't double-count.
         stmt = (
