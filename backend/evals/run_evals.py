@@ -129,15 +129,42 @@ async def _evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
         "pass": len(result.themes) <= max_count,
     }
 
-    # Action items presence — required by the case or not? We don't try to
-    # match exact action text (too brittle), just presence vs absence.
+    # Action items: two checks rolled into one slot.
+    #   1) Presence/absence — required by the case or not? Match exact text
+    #      is too brittle (model paraphrases every time), so only presence.
+    #   2) Optional forbidden-substring check — if the case declares
+    #      `expected_action_items_forbidden_substrings`, fail if any action
+    #      item contains any of those substrings (case-insensitive). Used to
+    #      catch content-level bugs like an action item parroting an absurd
+    #      premise from the input ("match historical standards from 1000
+    #      years ago"). Presence checks alone miss this.
     expected_required: bool = case.get("expected_action_items_required", False)
     actual_has = len(result.action_items) > 0
+    presence_pass = expected_required == actual_has
+    forbidden: list[str] = case.get(
+        "expected_action_items_forbidden_substrings", []
+    )
+    forbidden_hit: tuple[str, str] | None = None
+    if forbidden:
+        for item in result.action_items:
+            item_lower = item.lower()
+            for substring in forbidden:
+                if substring.lower() in item_lower:
+                    forbidden_hit = (item, substring)
+                    break
+            if forbidden_hit:
+                break
     checks["action_items"] = {
         "expected_required": expected_required,
         "actual_count": len(result.action_items),
         "actual_items": list(result.action_items),
-        "pass": expected_required == actual_has,
+        "forbidden_substrings": forbidden,
+        "forbidden_hit": (
+            {"action_item": forbidden_hit[0], "substring": forbidden_hit[1]}
+            if forbidden_hit
+            else None
+        ),
+        "pass": presence_pass and forbidden_hit is None,
     }
 
     # Language — exact ISO 639-1 match.
@@ -242,6 +269,15 @@ def _print_human_readable(report: dict[str, Any]) -> None:
                 expected = check.get("expected") or check.get("expected_subset") or check.get("expected_required")
                 actual = check.get("actual") or check.get("actual_themes") or check.get("actual_count")
                 print(f"        {k}: expected={expected!r} actual={actual!r}")
+                # Surface forbidden-substring hits inline — without this, the
+                # caller has to read the JSON to see WHY action_items failed
+                # when presence was fine but content was wrong.
+                if k == "action_items" and check.get("forbidden_hit"):
+                    hit = check["forbidden_hit"]
+                    print(
+                        f"        action_items forbidden-substring hit: "
+                        f"item={hit['action_item']!r} matched={hit['substring']!r}"
+                    )
 
 
 def _check_against_baseline(
