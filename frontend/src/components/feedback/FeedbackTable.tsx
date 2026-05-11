@@ -72,13 +72,13 @@ export function FeedbackTable({ items }: FeedbackTableProps) {
       <table className="w-full text-sm border-separate border-spacing-0 table-fixed">
         <thead className="bg-muted">
           <tr>
-            <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 w-24 border-b">
+            <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 w-32 border-b">
               {feedbackCopy.table.columnTime}
             </th>
-            <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 w-44 border-b">
+            <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 w-32 border-b">
               {feedbackCopy.table.columnSentiment}
             </th>
-            <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 hidden md:table-cell border-b">
+            <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 w-64 hidden md:table-cell border-b">
               {feedbackCopy.table.columnThemes}
             </th>
             <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 border-b">
