@@ -30,6 +30,11 @@ const ROWS_SINGLE = 8
 const ROWS_MULTIPLE = 12
 const SUBMITTING_TOAST_DURATION_MS = 2500
 
+const MODE_OPTIONS: ReadonlyArray<{ value: Mode; label: string }> = [
+  { value: "single", label: feedbackCopy.pasteForm.modeSingle },
+  { value: "multiple", label: feedbackCopy.pasteForm.modeMultiple },
+]
+
 function splitFeedbackTexts(text: string): string[] {
   // Blank-line split first (paragraphs / Slack copy), then single-newline
   // (spreadsheet columns), then treat as one feedback.
@@ -130,42 +135,30 @@ export function PasteForm({ onCreated }: PasteFormProps) {
         <CardDescription>{helperText}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {/* Mode toggle (radio pair). Native radio is fine here — the styling
-            burden of a custom toggle isn't worth the a11y/keyboard mileage we
-            already get from the platform control. */}
+        {/* Native radio over a custom toggle — the styling burden isn't
+            worth what we already get from the platform's a11y/keyboard. */}
         <fieldset className="flex items-center gap-4 flex-wrap">
           <Label className="text-sm font-medium">
             {feedbackCopy.pasteForm.modeLabel}:
           </Label>
           <div className="flex items-center gap-4">
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input
-                type="radio"
-                name="paste-mode"
-                value="single"
-                checked={mode === "single"}
-                onChange={() => setMode("single")}
-                disabled={submitting}
-                className="h-4 w-4"
-              />
-              <span className="text-sm">
-                {feedbackCopy.pasteForm.modeSingle}
-              </span>
-            </label>
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input
-                type="radio"
-                name="paste-mode"
-                value="multiple"
-                checked={mode === "multiple"}
-                onChange={() => setMode("multiple")}
-                disabled={submitting}
-                className="h-4 w-4"
-              />
-              <span className="text-sm">
-                {feedbackCopy.pasteForm.modeMultiple}
-              </span>
-            </label>
+            {MODE_OPTIONS.map(({ value, label }) => (
+              <label
+                key={value}
+                className="flex items-center gap-1.5 cursor-pointer"
+              >
+                <input
+                  type="radio"
+                  name="paste-mode"
+                  value={value}
+                  checked={mode === value}
+                  onChange={() => setMode(value)}
+                  disabled={submitting}
+                  className="h-4 w-4"
+                />
+                <span className="text-sm">{label}</span>
+              </label>
+            ))}
           </div>
         </fieldset>
 

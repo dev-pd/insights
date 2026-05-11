@@ -33,6 +33,17 @@ const sentimentLabel: Record<Sentiment, string> = {
   negative: feedbackCopy.sentiment.negative,
 }
 
+const TH_BASE_CLASS =
+  "sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 border-b"
+
+const COLUMNS: ReadonlyArray<{ label?: string; widthClass?: string; hideOnMobile?: boolean }> = [
+  { label: feedbackCopy.table.columnTime, widthClass: "w-32" },
+  { label: feedbackCopy.table.columnSentiment, widthClass: "w-32" },
+  { label: feedbackCopy.table.columnThemes, widthClass: "w-64", hideOnMobile: true },
+  { label: feedbackCopy.table.columnPreview },
+  { widthClass: "w-12" },
+]
+
 function truncate(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text
   return `${text.slice(0, maxChars).trim()}...`
@@ -40,8 +51,7 @@ function truncate(text: string, maxChars: number): string {
 
 function formatRelativeTime(iso: string): string {
   const date = new Date(iso)
-  const ageMs = Date.now() - date.getTime()
-  const ageDays = ageMs / (1000 * 60 * 60 * 24)
+  const ageDays = (Date.now() - date.getTime()) / (1000 * 60 * 60 * 24)
   if (ageDays >= RELATIVE_TIME_MAX_DAYS) return date.toLocaleDateString()
   return `${formatDistanceToNowStrict(date)} ago`
 }
@@ -56,11 +66,7 @@ export function FeedbackTable({ items }: FeedbackTableProps) {
   const toggleExpand = (id: number) => {
     setExpandedIds((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
+      next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
   }
@@ -72,19 +78,19 @@ export function FeedbackTable({ items }: FeedbackTableProps) {
       <table className="w-full text-sm border-separate border-spacing-0 table-fixed">
         <thead className="bg-muted">
           <tr>
-            <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 w-32 border-b">
-              {feedbackCopy.table.columnTime}
-            </th>
-            <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 w-32 border-b">
-              {feedbackCopy.table.columnSentiment}
-            </th>
-            <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 w-64 hidden md:table-cell border-b">
-              {feedbackCopy.table.columnThemes}
-            </th>
-            <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 border-b">
-              {feedbackCopy.table.columnPreview}
-            </th>
-            <th className="sticky top-0 z-10 bg-muted w-12 px-3 py-2 border-b" aria-hidden="true" />
+            {COLUMNS.map((col, index) => (
+              <th
+                key={index}
+                aria-hidden={col.label ? undefined : "true"}
+                className={cn(
+                  TH_BASE_CLASS,
+                  col.widthClass,
+                  col.hideOnMobile && "hidden md:table-cell",
+                )}
+              >
+                {col.label}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
@@ -122,22 +128,7 @@ function FeedbackRow({ item, isExpanded, onToggle }: FeedbackRowProps) {
           {formatRelativeTime(item.created_at)}
         </td>
         <td className="px-3 py-2">
-          {item.status === "extracted" && item.sentiment ? (
-            <Badge variant={sentimentBadgeVariant[item.sentiment]}>
-              {sentimentLabel[item.sentiment]}
-            </Badge>
-          ) : item.status === "processing" ? (
-            <Badge variant="outline" className="gap-1.5">
-              <Loader2Icon className="size-3 animate-spin" aria-hidden="true" />
-              {feedbackCopy.status.processing}
-            </Badge>
-          ) : item.status === "failed" ? (
-            <Badge variant="destructive">{feedbackCopy.status.failed}</Badge>
-          ) : item.status === "skipped" ? (
-            <Badge variant="secondary">{feedbackCopy.status.skipped}</Badge>
-          ) : (
-            <span className="text-xs text-muted-foreground">{item.status}</span>
-          )}
+          <StatusBadge item={item} />
         </td>
         <td className="px-3 py-2 hidden md:table-cell">
           {item.themes.length > 0 ? (
@@ -196,6 +187,31 @@ function FeedbackRow({ item, isExpanded, onToggle }: FeedbackRowProps) {
       )}
     </>
   )
+}
+
+function StatusBadge({ item }: { item: Feedback }) {
+  if (item.status === "extracted" && item.sentiment) {
+    return (
+      <Badge variant={sentimentBadgeVariant[item.sentiment]}>
+        {sentimentLabel[item.sentiment]}
+      </Badge>
+    )
+  }
+  if (item.status === "processing") {
+    return (
+      <Badge variant="outline" className="gap-1.5">
+        <Loader2Icon className="size-3 animate-spin" aria-hidden="true" />
+        {feedbackCopy.status.processing}
+      </Badge>
+    )
+  }
+  if (item.status === "failed") {
+    return <Badge variant="destructive">{feedbackCopy.status.failed}</Badge>
+  }
+  if (item.status === "skipped") {
+    return <Badge variant="secondary">{feedbackCopy.status.skipped}</Badge>
+  }
+  return <span className="text-xs text-muted-foreground">{item.status}</span>
 }
 
 function FeedbackRowDetail({ item }: { item: Feedback }) {

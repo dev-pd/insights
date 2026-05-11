@@ -57,60 +57,43 @@ export function StatsDashboard() {
     )
   }
 
-  const trend = trendDirection(data.today_delta.delta_pct)
-  const extracted = data.total_extracted
+  const { sentiment_breakdown, today_delta, total_extracted } = data
+  const sentimentShare = (count: number) =>
+    statsCopy.kpis.sentimentShareHint(count, total_extracted)
   const totalTokens = data.total_input_tokens + data.total_output_tokens
+
+  const kpis: Array<React.ComponentProps<typeof KpiCard>> = [
+    {
+      label: statsCopy.kpis.totalFeedback,
+      value: data.total_feedback,
+      hint: statsCopy.kpis.extractedHint(
+        data.total_extracted,
+        data.total_skipped,
+        data.total_failed,
+      ),
+    },
+    { label: statsCopy.kpis.positive, value: sentiment_breakdown.positive, hint: sentimentShare(sentiment_breakdown.positive) },
+    { label: statsCopy.kpis.neutral, value: sentiment_breakdown.neutral, hint: sentimentShare(sentiment_breakdown.neutral) },
+    { label: statsCopy.kpis.negative, value: sentiment_breakdown.negative, hint: sentimentShare(sentiment_breakdown.negative) },
+    {
+      label: statsCopy.kpis.today,
+      value: today_delta.today_count,
+      trend: trendDirection(today_delta.delta_pct),
+      hint: statsCopy.kpis.dayOverDay(today_delta.delta_pct),
+    },
+    {
+      label: statsCopy.kpis.totalTokens,
+      value: formatTokens(totalTokens),
+      hint: statsCopy.kpis.tokensHint(data.total_input_tokens, data.total_output_tokens),
+    },
+  ]
 
   return (
     <section className="flex flex-col gap-4">
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-        <KpiCard
-          label={statsCopy.kpis.totalFeedback}
-          value={data.total_feedback}
-          hint={statsCopy.kpis.extractedHint(
-            data.total_extracted,
-            data.total_skipped,
-            data.total_failed,
-          )}
-        />
-        <KpiCard
-          label={statsCopy.kpis.positive}
-          value={data.sentiment_breakdown.positive}
-          hint={statsCopy.kpis.sentimentShareHint(
-            data.sentiment_breakdown.positive,
-            extracted,
-          )}
-        />
-        <KpiCard
-          label={statsCopy.kpis.neutral}
-          value={data.sentiment_breakdown.neutral}
-          hint={statsCopy.kpis.sentimentShareHint(
-            data.sentiment_breakdown.neutral,
-            extracted,
-          )}
-        />
-        <KpiCard
-          label={statsCopy.kpis.negative}
-          value={data.sentiment_breakdown.negative}
-          hint={statsCopy.kpis.sentimentShareHint(
-            data.sentiment_breakdown.negative,
-            extracted,
-          )}
-        />
-        <KpiCard
-          label={statsCopy.kpis.today}
-          value={data.today_delta.today_count}
-          trend={trend}
-          hint={statsCopy.kpis.dayOverDay(data.today_delta.delta_pct)}
-        />
-        <KpiCard
-          label={statsCopy.kpis.totalTokens}
-          value={formatTokens(totalTokens)}
-          hint={statsCopy.kpis.tokensHint(
-            data.total_input_tokens,
-            data.total_output_tokens,
-          )}
-        />
+        {kpis.map((kpi) => (
+          <KpiCard key={kpi.label} {...kpi} />
+        ))}
       </div>
 
       <SummaryWidget />

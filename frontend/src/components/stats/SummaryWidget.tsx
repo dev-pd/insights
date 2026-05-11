@@ -23,8 +23,44 @@ import { stats as statsCopy } from "@/locales/en/stats"
 const MS_PER_MINUTE = 60_000
 
 function minutesSince(iso: string): number {
-  const date = new Date(iso)
-  return Math.floor((Date.now() - date.getTime()) / MS_PER_MINUTE)
+  return Math.floor((Date.now() - new Date(iso).getTime()) / MS_PER_MINUTE)
+}
+
+interface WidgetHeaderProps {
+  refreshing: boolean
+  onRefresh?: () => void
+}
+
+function WidgetHeader({ refreshing, onRefresh }: WidgetHeaderProps) {
+  return (
+    <CardHeader
+      className={cn(
+        "flex flex-row items-center justify-between space-y-0",
+        onRefresh && "pb-3",
+      )}
+    >
+      <CardTitle className="text-base flex items-center gap-2">
+        <SparklesIcon className="size-4 text-muted-foreground" />
+        <span>{statsCopy.summary.title}</span>
+      </CardTitle>
+      {onRefresh && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onRefresh}
+          disabled={refreshing}
+          className="h-8"
+        >
+          <RefreshCwIcon
+            className={cn("size-3.5 mr-1.5", refreshing && "animate-spin")}
+          />
+          {refreshing
+            ? statsCopy.summary.refreshing
+            : statsCopy.summary.refreshButton}
+        </Button>
+      )}
+    </CardHeader>
+  )
 }
 
 export function SummaryWidget() {
@@ -44,10 +80,7 @@ export function SummaryWidget() {
   const handleRefresh = async () => {
     setRefreshing(true)
     try {
-      const fresh = await apiClient.post<Summary>(
-        API_ROUTES.summaryRefresh,
-        {},
-      )
+      const fresh = await apiClient.post<Summary>(API_ROUTES.summaryRefresh, {})
       await mutate(fresh, { revalidate: false })
     } catch (refreshError) {
       const message =
@@ -63,12 +96,7 @@ export function SummaryWidget() {
   if (isLoading && !data) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <SparklesIcon className="size-4 text-muted-foreground" />
-            <span>{statsCopy.summary.title}</span>
-          </CardTitle>
-        </CardHeader>
+        <WidgetHeader refreshing={false} />
         <CardContent className="flex flex-col gap-2">
           <Skeleton className="h-4 w-full" />
           <Skeleton className="h-4 w-full" />
@@ -81,26 +109,7 @@ export function SummaryWidget() {
   if (error || !data) {
     return (
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base flex items-center gap-2">
-            <SparklesIcon className="size-4 text-muted-foreground" />
-            <span>{statsCopy.summary.title}</span>
-          </CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="h-8"
-          >
-            <RefreshCwIcon
-              className={cn("size-3.5 mr-1.5", refreshing && "animate-spin")}
-            />
-            {refreshing
-              ? statsCopy.summary.refreshing
-              : statsCopy.summary.refreshButton}
-          </Button>
-        </CardHeader>
+        <WidgetHeader refreshing={refreshing} onRefresh={handleRefresh} />
         <CardContent>
           <p className="text-sm text-destructive">
             {error instanceof Error ? error.message : common.errors.generic}
@@ -115,37 +124,18 @@ export function SummaryWidget() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <SparklesIcon className="size-4 text-muted-foreground" />
-          <span>{statsCopy.summary.title}</span>
-        </CardTitle>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="h-8"
-        >
-          <RefreshCwIcon
-            className={cn("size-3.5 mr-1.5", refreshing && "animate-spin")}
-          />
-          {refreshing
-            ? statsCopy.summary.refreshing
-            : statsCopy.summary.refreshButton}
-        </Button>
-      </CardHeader>
+      <WidgetHeader refreshing={refreshing} onRefresh={handleRefresh} />
       <CardContent className="flex flex-col gap-3">
-        {hasError ? (
-          <p className="text-sm text-destructive min-h-[88px]">{statsCopy.summary.error}</p>
-        ) : (
-          // 4-line clamp keeps the card compact. The summary/v1.2 prompt
-          // targets 380-500 chars (≈4-5 lines at this width); longer
-          // returns get clamped with ellipsis rather than reflowing the card.
-          <p className="text-sm leading-relaxed text-foreground line-clamp-4 min-h-[88px]">
-            {data.text}
-          </p>
-        )}
+        <p
+          className={cn(
+            "text-sm min-h-[88px]",
+            hasError
+              ? "text-destructive"
+              : "leading-relaxed text-foreground line-clamp-4",
+          )}
+        >
+          {hasError ? statsCopy.summary.error : data.text}
+        </p>
 
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span>{statsCopy.summary.updatedAgo(minutes)}</span>

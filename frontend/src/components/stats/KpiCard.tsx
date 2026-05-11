@@ -12,24 +12,12 @@ interface KpiCardProps {
   ref?: React.Ref<HTMLDivElement>
 }
 
-// Unicode arrows (typography codepoints, not emojis) — render at the font's
-// glyph size so they sit on the baseline next to the value.
-const trendIcon: Record<KpiTrend, string> = {
-  up: "↑",
-  down: "↓",
-  flat: "→",
-}
-
-const trendColor: Record<KpiTrend, string> = {
-  up: "text-emerald-600 dark:text-emerald-500",
-  down: "text-rose-600 dark:text-rose-500",
-  flat: "text-muted-foreground",
-}
-
-const trendLabel: Record<KpiTrend, string> = {
-  up: "trending up",
-  down: "trending down",
-  flat: "flat",
+// Unicode arrows (typography codepoints, not emojis) sit on the baseline
+// next to the value. One config keeps icon/color/aria-label in sync.
+const TREND_STYLE: Record<KpiTrend, { icon: string; color: string; label: string }> = {
+  up: { icon: "↑", color: "text-emerald-600 dark:text-emerald-500", label: "trending up" },
+  down: { icon: "↓", color: "text-rose-600 dark:text-rose-500", label: "trending down" },
+  flat: { icon: "→", color: "text-muted-foreground", label: "flat" },
 }
 
 export function KpiCard({
@@ -54,10 +42,10 @@ export function KpiCard({
             )}
             {trend && (
               <span
-                className={cn("text-xs font-medium", trendColor[trend])}
-                aria-label={trendLabel[trend]}
+                className={cn("text-xs font-medium", TREND_STYLE[trend].color)}
+                aria-label={TREND_STYLE[trend].label}
               >
-                {trendIcon[trend]}
+                {TREND_STYLE[trend].icon}
               </span>
             )}
           </div>
