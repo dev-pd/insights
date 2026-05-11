@@ -1,6 +1,6 @@
 ---
 name: prompt-evaluator
-description: Evaluates the active extraction prompt against the golden test set and reports pass/fail metrics. Use this subagent after any change to the active prompt version (`app/llm/prompts/extraction/__init__.py`), after editing prompt files, or when investigating extraction quality regressions. Do NOT use for general code review, non-prompt changes, or summary-prompt evals (no golden set for summary yet).
+description: Runs the eval harness against the active extraction prompt and reports pass/fail vs baseline thresholds. Use after editing the active prompt or any prompt file; skip for general code review and summary-prompt changes (no golden set for summary).
 tools: Bash
 model: sonnet
 ---

@@ -1,6 +1,6 @@
 ---
 name: stress-tester
-description: Runs a load test against the local Feedback Insights stack and returns a structured drain-time / failure-rate / cost report. Use this after touching the worker pipeline (Celery, Redis, LLM client, retry logic) or before claiming the system handles N concurrent feedbacks. Do NOT use for general code review, single-item smoke tests, or anything that doesn't need 5+ minutes of unattended polling.
+description: Runs a load test against the local stack and reports drain-time, failure rate, and Anthropic spend. Use after touching the worker pipeline (Celery, Redis, LLM client, retry logic) or before claiming capacity at N concurrent items. Skip for code review or single-item smoke tests.
 tools: Bash
 model: sonnet
 ---

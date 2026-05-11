@@ -1,6 +1,6 @@
 ---
 name: prompt-engineering
-description: Iteration workflow for prompts in backend/app/llm/prompts/ — when to bump a version, how to add a golden case, how to interpret eval-harness output, the baseline-update workflow. Invoke when adding/editing prompts, when an eval run shows regressions, when adding new golden cases, or when planning an A/B test of two prompt versions.
+description: Workflow for iterating prompts in backend/app/llm/prompts/ — versioning, golden cases, eval harness, baseline updates. Invoke when editing prompts, after an eval regression, or when adding golden cases.
 ---
 
 # Prompt engineering workflow
@@ -11,83 +11,27 @@ Everything about iterating prompts in this codebase: versioning, evals, baseline
 
 ```
 backend/app/llm/prompts/
-├── extraction/
-│   ├── __init__.py        ACTIVE_PROMPT / ACTIVE_VERSION selector
-│   ├── v1.py              VERSION = "extraction/v1"     (immutable)
-│   └── v1_1.py            VERSION = "extraction/v1.1"   (immutable, currently ACTIVE)
-└── summary/
-    ├── __init__.py
-    ├── v1.py
-    └── v1_1.py
+├── extraction/           __init__.py + v1.py, v1_1.py, v1_2.py (ACTIVE)
+└── summary/              __init__.py + v1.py, v1_1.py
 
 backend/evals/
 ├── golden/extraction.jsonl    Hand-curated test cases
 ├── run_evals.py               Async harness (JSON + --check)
-└── baseline.json              Thresholds + last-observed metrics
+├── baseline.json              Thresholds + last-observed metrics
+└── explore_edges.py           Ad-hoc probe (no grading)
 
-.claude/agents/prompt-evaluator.md   Sub-agent that runs the harness and reports
-
-.github/workflows/evals.yml          CI gate (only triggers on prompts/ or evals/ PRs)
+.claude/agents/prompt-evaluator.md   Sub-agent that runs the harness
+.github/workflows/evals.yml          CI gate (triggers on prompts/ or evals/ PRs)
 ```
 
-## The single iteration loop
+## The iteration loop
 
-This is the canonical workflow. Don't skip steps.
-
-```
-┌─────────────────────────────────────────────────────────┐
-│ 1. SEE A FAILURE                                        │
-│    (Either: real user output looks wrong, OR a new      │
-│    golden case fails on the active prompt.)             │
-└──────────────────────┬──────────────────────────────────┘
-                       ▼
-┌─────────────────────────────────────────────────────────┐
-│ 2. ADD/UPDATE A GOLDEN                                  │
-│    Capture the failing case as a golden BEFORE editing  │
-│    the prompt. This ensures the fix you make is         │
-│    measurable, and that future prompts don't regress.   │
-└──────────────────────┬──────────────────────────────────┘
-                       ▼
-┌─────────────────────────────────────────────────────────┐
-│ 3. CREATE A NEW VERSION FILE                            │
-│    `extraction/v1_2.py` — DO NOT edit v1_1.py.          │
-│    Set VERSION = "extraction/v1.2".                     │
-│    Copy the previous prompt, make the targeted change.  │
-└──────────────────────┬──────────────────────────────────┘
-                       ▼
-┌─────────────────────────────────────────────────────────┐
-│ 4. POINT ACTIVE AT THE NEW VERSION                      │
-│    Update extraction/__init__.py:                       │
-│      ACTIVE_PROMPT  = V1_2_PROMPT                       │
-│      ACTIVE_VERSION = V1_2_VERSION                      │
-└──────────────────────┬──────────────────────────────────┘
-                       ▼
-┌─────────────────────────────────────────────────────────┐
-│ 5. RUN THE EVAL                                         │
-│    docker compose run --rm \                            │
-│      -v "$(pwd)/backend/evals:/app/evals:ro" \          │
-│      backend python /app/evals/run_evals.py --json      │
-│                                                          │
-│    Or invoke the `prompt-evaluator` sub-agent.          │
-└──────────────────────┬──────────────────────────────────┘
-                       ▼
-┌─────────────────────────────────────────────────────────┐
-│ 6. ANALYZE                                              │
-│    Did the targeted metric improve?                     │
-│    Did anything else regress?                           │
-│    Are the changes within or above the baseline?        │
-└──────────────────────┬──────────────────────────────────┘
-                       ▼
-                 ┌─────┴──────┐
-                 ▼            ▼
-        ┌──────────────┐  ┌──────────────────────────────┐
-        │ IMPROVED     │  │ REGRESSED                    │
-        │ baseline,    │  │ DON'T commit. Revert ACTIVE  │
-        │ commit       │  │ in __init__.py back to       │
-        │ everything   │  │ v1_1 and iterate again on    │
-        │ together     │  │ v1_2 (or scrap and try v1_3) │
-        └──────────────┘  └──────────────────────────────┘
-```
+1. **See a failure.** Either real output looks wrong, OR a new golden fails on the active prompt. For exploratory candidates, run `explore_edges.py` first to see actual behavior before encoding expectations.
+2. **Add/update a golden** capturing the failure BEFORE editing the prompt. Makes the fix measurable and prevents future regressions.
+3. **Create a new version file** (`extraction/v1_3.py`). DO NOT edit a previous version — they're immutable so production traces stay reproducible. Set `VERSION = "extraction/v1.3"`. Copy the previous prompt, make the targeted change.
+4. **Point ACTIVE** at the new version in `extraction/__init__.py` (two lines: `ACTIVE_PROMPT`, `ACTIVE_VERSION`).
+5. **Rebuild + eval.** `docker compose build backend` (image bakes the prompt), then run the harness via `docker compose run --rm -v "$(pwd)/backend/evals:/app/evals:ro" backend python /app/evals/run_evals.py` — or invoke the `prompt-evaluator` sub-agent.
+6. **Analyze.** Did the targeted metric improve? Anything regress? If improved → commit everything together (see below). If regressed → revert ACTIVE in `__init__.py`, iterate on the new version file in place (it's not committed yet, so still mutable) or scrap and bump.
 
 ## What "commit everything together" means
 
