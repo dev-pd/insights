@@ -72,7 +72,7 @@ In Phase 4 each text dispatches to Celery; the endpoint returns immediately with
 
 ### LLM usage audit
 
-Every successful LLM call writes one row to `llm_usage` (`app/models/llm_usage.py`). Single source of truth for cost + latency + per-version analytics. Columns: `call_type` (`"extraction" | "summary"`), `model`, `input_tokens`, `output_tokens`, `latency_ms`, `prompt_version`, `feedback_id` (FK, nullable — extraction only). Dashboard `Total tokens` KPI reads from here, so manual summary refreshes visibly bump the count.
+Every successful LLM call writes one row to `llm_usage` (`app/models/llm_usage.py`). Single source of truth for cost + latency + per-version analytics. Columns: `call_type` (`"extraction" | "summary"`), `model`, `input_tokens`, `output_tokens`, `latency_ms`, `prompt_version`, `feedback_id` (FK, nullable — extraction only). The dashboard doesn't render token/latency tiles in the current 5-KPI layout (those got cut as operator-facing telemetry), but the table is still the canonical source for any cost/latency reporting and gets read by the eval workflow when comparing prompt versions.
 
 Skipped/failed paths don't record — no successful response → no tokens to capture.
 

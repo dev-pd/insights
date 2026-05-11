@@ -87,7 +87,7 @@ Production levers documented in NOTES.md as graduation work: per-user limits, da
 
 ## LLM usage audit table
 
-Every successful API call (extraction or summary) writes one row to `llm_usage` (see backend/CLAUDE.md § LLM usage audit). This is the single source of truth for cost, latency, and per-prompt-version analytics. Dashboard "Total tokens" KPI reads from this table.
+Every successful API call (extraction or summary) writes one row to `llm_usage` (see backend/CLAUDE.md § LLM usage audit). Single source of truth for cost, latency, and per-prompt-version analytics — used by the eval workflow when comparing prompt versions, and the obvious place to add a cost dashboard later.
 
 ## Failure handling categories
 

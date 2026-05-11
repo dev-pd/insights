@@ -48,9 +48,9 @@ as a comment: declaring a fix needs evidence, not just "looks right."
 - A golden set for the summary prompt (currently only extraction has one).
 - A `UserPromptSubmit` hook that injects relevant CASE_STUDIES entries by
   keyword — auto-prevents rediscovering past bugs.
-- A drift-checker that diffs CLAUDE.md claims against actual API contracts
-  and folder structure (would have caught the staleness I trimmed in
-  commit `63b3a33`).
+- A drift-checker that diffs CLAUDE.md claims (API paths, folder layout,
+  Settings field names) against the actual code. Mechanical staleness is
+  the easiest kind to ship by accident as the codebase moves under you.
 - Real CI spend monitoring on the eval workflow.
 
 **On hooks/slash commands:** I didn't write any. The take-home scope had

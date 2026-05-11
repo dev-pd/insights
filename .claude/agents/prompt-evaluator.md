@@ -114,7 +114,7 @@ Stick to patterns the data supports — no speculation.
 
 - **`theme_subset_pass_rate` failure where actual themes are semantically equivalent but worded differently** (e.g., expected "support", got "customer service"; expected "envío", got "shipping" on a Spanish case) → either the prompt's canonical-name rule isn't landing OR the golden's expected term is too narrow. Inspect the specific cases; if the model's term is genuinely more canonical, the golden may need adjustment (escalate to a human; do NOT change goldens yourself). If the model is paraphrasing inconsistently, the prompt needs sharper canonical-name examples.
 
-- **`theme_count_pass_rate` failure (model returning 5+ themes when expected ≤3)** → the prompt's "1-5 themes" range isn't being scoped per-case. Suggest tightening to "prefer 1-3 themes; only return more when the feedback genuinely spans many distinct topics".
+- **`theme_count_pass_rate` failure (model returning 4+ themes when expected ≤3)** → the active prompt should cap at 1-3 per the take-home spec (see `extraction/v1.3`). If the cap is being violated, the prompt's count rule isn't landing strongly enough — suggest reinforcing with a "AT MOST 3 themes" line and tightening to "prefer 1-2 when a single dominant topic, only 3 when genuinely multi-issue". The Pydantic schema cap (`max_length=3`) is the backstop, but reaching it means the prompt is asking for too many.
 
 - **`action_items_pass_rate` failure with false positives** (action items returned when none expected) → the prompt's action-item criteria are too loose. Suggest adding "only return action items when the feedback names a specific, actionable change. Do not return action items for praise or general suggestions without a clear ask."
 

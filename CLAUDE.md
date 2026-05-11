@@ -37,7 +37,7 @@ Cross-cutting items that bit us during phase work. Stack-specific gotchas live i
 - **Beat needs a writable schedule path.** The default `celerybeat-schedule` lives in CWD, which is `/app` and owned by root; the non-root `app` user can't write there. Use `--schedule=/tmp/celerybeat-schedule`. The state is just last-run timestamps — losing it on container restart at most fires one redundant invocation.
 - **`asyncio.run()` in Celery tasks rebinds the event loop each call.** Caching a SQLAlchemy async engine at module level ties it to the FIRST loop, then subsequent tasks crash with `RuntimeError: Future attached to a different loop`. Fix: build the engine inside the async body via a context manager (`worker_session_scope` in `backend/app/tasks/_worker_session.py`) and dispose on exit. ~5ms per task vs 1s LLM call — negligible.
 - **Anthropic SDK `APIConnectionError` lacks `status_code`.** It's the parent of `APITimeoutError`; both extend `APIError` but never got a response, so `if e.status_code` raises `AttributeError`. Use `getattr(e, "status_code", None)` and treat `None` as "transient — retry it". `backend/app/llm/client.py` does this now.
-- **Workers see more transient Anthropic errors than the backend does.** Different processes, different DNS-resolved sockets, occasionally different egress paths. The retry+backoff loop in `call_with_retry` matters more for the worker path than for the backend's old sync path.
+- **Workers see more transient Anthropic errors than the FastAPI process does.** Different processes, different DNS-resolved sockets, occasionally different egress paths. The retry+backoff loop in `call_with_retry` matters more on the worker path (where most calls happen) than on the request path (where only the summary endpoint calls Anthropic now).
 - **Separate Redis logical DBs for broker / results / cache.** `db 0` = cache + pub/sub, `db 1` = Celery broker, `db 2` = Celery results. `FLUSHDB` on one role doesn't pollute the others. Documented in `backend/.env.example`.
 - **nginx `proxy_buffering off` + `proxy_read_timeout 24h`** are already on `/api/` from earlier work. Don't add a separate `/api/v1/events` location block — SSE works through the existing one. (Restarting nginx after backend rebuild still required — the upstream-IP-cache gotcha applies.)
 - **EventSource doesn't reconnect on 4xx.** It auto-reconnects on transient drops but not on HTTP errors — so if a backend bug returns 401/404/500 the browser silently stops retrying. Test the SSE endpoint with `curl -N /api/v1/events` after deploys to catch this fast.
@@ -51,7 +51,7 @@ Two paths, same underlying pipeline:
 - **Dashboard button** — top-right of `/`, dispatches 100 synthetic items through `POST /v1/feedback/stress-test`. Hard-capped at `Settings.stress_test_max_count` (default 200) so a typo can't burn real budget.
 - **`backend/scripts/stress_test.sh <N>`** — CLI version with live drain logging + latency stats. Goes through `/v1/feedback/batch` and supports any N via 50-item chunking.
 
-**Capacity observed (Haiku default Anthropic tier, 4 prefork workers):**
+**Capacity observed (Haiku default Anthropic tier, `CELERY_WORKER_CONCURRENCY=3`):**
 
 | N | Drain | Throughput | Failed | Notes |
 |---|---|---|---|---|
@@ -60,9 +60,9 @@ Two paths, same underlying pipeline:
 | 100 | 99s | 0.77 items/s | 24% (rate-limited) | Anthropic 429s start dominating |
 | 1000 (extrapolated) | ~20 min | ~0.8 items/s sustained | likely ~25-40% w/o retry-policy tuning | budget concern |
 
-**The ceiling is Anthropic, not us.** Haiku default tier is ~50 RPM (~0.83 calls/s); 4 concurrent workers at ~2s/call push ~2 calls/s — we exceed the rate limit and the SDK gives us 429s. Our retry budget (3 attempts × exponential backoff) absorbs short bursts but exhausts on sustained overload.
+**The ceiling is Anthropic, not us.** Haiku default tier is ~50 RPM (~0.83 calls/s); 3 concurrent workers at ~2s/call push ~1.5 calls/s — bursts exceed the rate limit and the SDK returns 429s. Our retry budget (`celery_extract_max_retries=6`, exponential backoff up to `celery_extract_retry_backoff_max=120s`, both Settings-driven) absorbs multi-minute 429 bursts in practice but exhausts under sustained overload — see CASE_STUDIES.md case 6.
 
-**To push higher cleanly:** bump `LLM_MAX_RETRIES` and `CELERY_WORKER_CONCURRENCY` to match your Anthropic tier, or wrap `extract_insights` in `asyncio.Semaphore(settings.llm_concurrency_limit)` to throttle below the rate limit. Both are graduation work — current setup is right for take-home demo scale.
+**To push higher cleanly:** bump `CELERY_WORKER_CONCURRENCY` to match your Anthropic tier (the retry budget already absorbs the bursts), or wrap `extract_insights` in `asyncio.Semaphore(settings.llm_concurrency_limit)` to throttle below the rate limit. Both are graduation work — current setup is right for take-home demo scale.
 
 ## What lives elsewhere
 - Subagents: `.claude/agents/`

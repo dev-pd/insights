@@ -11,11 +11,11 @@ Everything about iterating prompts in this codebase: versioning, evals, baseline
 
 ```
 backend/app/llm/prompts/
-├── extraction/           __init__.py + v1.py, v1_1.py, v1_2.py (ACTIVE)
-└── summary/              __init__.py + v1.py, v1_1.py
+├── extraction/           __init__.py + v1.py, v1_1.py, v1_2.py, v1_3.py (ACTIVE)
+└── summary/              __init__.py + v1.py, v1_1.py, v1_2.py (ACTIVE)
 
 backend/evals/
-├── golden/extraction.jsonl    Hand-curated test cases
+├── golden/extraction.jsonl    20 hand-curated test cases
 ├── run_evals.py               Async harness (JSON + --check)
 ├── baseline.json              Thresholds + last-observed metrics
 └── explore_edges.py           Ad-hoc probe (no grading)
@@ -23,6 +23,8 @@ backend/evals/
 .claude/agents/prompt-evaluator.md   Sub-agent that runs the harness
 .github/workflows/evals.yml          CI gate (triggers on prompts/ or evals/ PRs)
 ```
+
+Only `extraction/` has a golden set today. `summary/` is verified qualitatively via the dashboard widget; adding a summary golden set is listed in NOTES.md as graduation work.
 
 ## The iteration loop
 
