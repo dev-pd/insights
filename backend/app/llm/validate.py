@@ -37,6 +37,22 @@ _INJECTION_PATTERNS: tuple[re.Pattern[str], ...] = (
     ),
 )
 
+# Threshold above which "<N> years ago" reads as absurd in product
+# feedback. 100 keeps the rule conservative — "30 years ago I learned
+# to code" or "50 years of computing history" pass, while "1000 yrs
+# ago" / "500 years ago" / "100 years ago" are caught.
+_NONSENSICAL_AGE_THRESHOLD_YEARS = 100
+
+_NONSENSICAL_NUMERIC_AGE = re.compile(
+    r"\b(\d+)\s*(?:yrs?|years?)\s+ago\b",
+    re.IGNORECASE,
+)
+
+_NONSENSICAL_TIMESCALE_WORDS = re.compile(
+    r"\b(?:centuries|millennia|millennium|millenniums)\s+ago\b",
+    re.IGNORECASE,
+)
+
 
 def validate_feedback(text: str) -> SkipReason | None:
     """Pre-LLM validation. Returns SkipReason if input should be skipped, None if valid.
@@ -66,5 +82,12 @@ def validate_feedback(text: str) -> SkipReason | None:
     for pattern in _INJECTION_PATTERNS:
         if pattern.search(stripped):
             return SkipReason.PROMPT_INJECTION
+
+    age_match = _NONSENSICAL_NUMERIC_AGE.search(stripped)
+    if age_match and int(age_match.group(1)) >= _NONSENSICAL_AGE_THRESHOLD_YEARS:
+        return SkipReason.NONSENSICAL_TIMEFRAME
+
+    if _NONSENSICAL_TIMESCALE_WORDS.search(stripped):
+        return SkipReason.NONSENSICAL_TIMEFRAME
 
     return None

@@ -23,6 +23,10 @@ class SkipReason(StrEnum):
     # attempts ("ignore previous instructions", "reveal your prompt").
     # Rejected at the validator so the LLM never sees the payload.
     PROMPT_INJECTION = "prompt_injection"
+    # Implausible time framings ("1000 yrs ago", "centuries ago") in
+    # product feedback. Caught upstream so the LLM doesn't burn a call
+    # producing a debatable sentiment label on inputs that are noise.
+    NONSENSICAL_TIMEFRAME = "nonsensical_timeframe"
 
 
 class LlmCallType(StrEnum):
