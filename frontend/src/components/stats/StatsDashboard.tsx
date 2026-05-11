@@ -10,11 +10,9 @@ import { SentimentTrendChart } from "./SentimentTrendChart"
 import { SummaryWidget } from "./SummaryWidget"
 import { ThemeFrequencyChart } from "./ThemeFrequencyChart"
 
-const KPI_COUNT = 5
+const KPI_COUNT = 6
 
-// Threshold for the "Today" trend arrow. Movement under this is rendered as
-// flat — small fluctuations (1-2%) shouldn't trigger directional indicators
-// because they look noisy on a small dataset.
+// Sub-5pp moves render as flat — small fluctuations look noisy on a small dataset.
 const TREND_FLAT_THRESHOLD_PCT = 5
 
 function trendDirection(deltaPct: number | null): KpiTrend | null {
@@ -24,13 +22,19 @@ function trendDirection(deltaPct: number | null): KpiTrend | null {
   return "flat"
 }
 
+function formatTokens(total: number): string {
+  if (total < 1_000) return total.toString()
+  if (total < 1_000_000) return `${(total / 1_000).toFixed(1)}k`
+  return `${(total / 1_000_000).toFixed(1)}M`
+}
+
 export function StatsDashboard() {
   const { data, isLoading, error } = useDashboardStats()
 
   if (isLoading && !data) {
     return (
       <section className="flex flex-col gap-4">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
           {Array.from({ length: KPI_COUNT }).map((_, index) => (
             <Skeleton key={index} className="h-20 w-full" />
           ))}
@@ -55,10 +59,11 @@ export function StatsDashboard() {
 
   const trend = trendDirection(data.today_delta.delta_pct)
   const extracted = data.total_extracted
+  const totalTokens = data.total_input_tokens + data.total_output_tokens
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         <KpiCard
           label={statsCopy.kpis.totalFeedback}
           value={data.total_feedback}
@@ -97,6 +102,14 @@ export function StatsDashboard() {
           value={data.today_delta.today_count}
           trend={trend}
           hint={statsCopy.kpis.dayOverDay(data.today_delta.delta_pct)}
+        />
+        <KpiCard
+          label={statsCopy.kpis.totalTokens}
+          value={formatTokens(totalTokens)}
+          hint={statsCopy.kpis.tokensHint(
+            data.total_input_tokens,
+            data.total_output_tokens,
+          )}
         />
       </div>
 

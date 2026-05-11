@@ -6,15 +6,15 @@ export const stats = {
     neutral: "Neutral",
     negative: "Negative",
     today: "Today",
+    totalTokens: "Total tokens",
     dayOverDay: (delta: number | null) => {
       if (delta === null) return "vs yesterday: -"
       const sign = delta > 0 ? "+" : ""
       return `vs yesterday: ${sign}${delta.toFixed(1)}%`
     },
-    // The hint now leads with `extracted` so users see the live-growing
-    // count during a drain — that was previously implicit (total minus
-    // skipped minus failed) and made the dashboard look stuck during a
-    // stress test where total had already jumped at dispatch.
+    // Lead with `extracted` so the live-growing count is visible during
+    // a drain — `total` jumps at dispatch and made the dashboard look
+    // stuck under stress tests.
     extractedHint: (extracted: number, skipped: number, failed: number) =>
       `${extracted} extracted, ${skipped} skipped, ${failed} failed`,
     sentimentShareHint: (count: number, total: number) => {
@@ -22,6 +22,8 @@ export const stats = {
       const pct = (count / total) * 100
       return `${pct.toFixed(0)}% of extracted`
     },
+    tokensHint: (input: number, output: number) =>
+      `${input.toLocaleString()} in / ${output.toLocaleString()} out`,
   },
   charts: {
     themeFrequency: {
