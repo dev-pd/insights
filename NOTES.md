@@ -13,16 +13,17 @@ into the root for shared system shape. I deleted a third skill
 Python/FastAPI patterns Claude can infer from the codebase — a skill
 only earns its slot when the content is genuinely project-specific.
 
-**2. The prompt iteration triplet: harness + sub-agent + skill.** The
-eval harness runs 20 hand-curated goldens with `--check` exit codes for
-CI gating. The `prompt-evaluator` sub-agent does ONE thing — run the
-harness, report pass/fail vs baseline — with threshold tables and file
-paths baked into the prompt, not delegated to the model. The
-`prompt-engineering` skill owns the meta-workflow (when to bump versions,
-how to write goldens, when to update baselines). Different lifecycles,
-clean boundaries. I also added an `explore_edges.py` probe to SEE
-behavior on candidate inputs before encoding expectations into a golden
-— commit `1257442` shows the full v1.1→v1.2 loop with metric deltas.
+**2. A full prompt-iteration pipeline: generator → evaluator → human →
+golden set.** Two narrow sub-agents form the loop. `edge-case-generator`
+reads the existing goldens + active prompt and proposes JSONL candidates
+covering gaps in a coverage taxonomy (sentiment subtypes, theme synonyms,
+action-item presence/absence, absurd framings); it never writes files —
+a human approves which candidates land. `prompt-evaluator` runs the eval
+harness against the live prompt and reports pass/fail vs `baseline.json`.
+The `prompt-engineering` skill documents the workflow. Each piece has
+thresholds, file paths, and decision criteria baked into its prompt
+rather than punted to the model. Commit `1257442` shows the manual half
+of this loop in action (v1.1→v1.2 with metric deltas).
 
 **3. `CASE_STUDIES.md` as a separate decision log.** Production-shaped
 incidents (Anthropic rate-limit ceiling, asyncio event-loop binding bug,
@@ -46,11 +47,10 @@ as a comment: declaring a fix needs evidence, not just "looks right."
 ## What I'd add if this were long-lived
 
 - A golden set for the summary prompt (currently only extraction has one).
-- A `UserPromptSubmit` hook that injects relevant CASE_STUDIES entries by
-  keyword — auto-prevents rediscovering past bugs.
+- An automated "generate → eval → diff → file PR" cron loop on top of
+  the existing two-agent pipeline.
 - A drift-checker that diffs CLAUDE.md claims (API paths, folder layout,
-  Settings field names) against the actual code. Mechanical staleness is
-  the easiest kind to ship by accident as the codebase moves under you.
+  Settings field names) against the actual code.
 - Real CI spend monitoring on the eval workflow.
 
 **On hooks/slash commands:** I didn't write any. The take-home scope had

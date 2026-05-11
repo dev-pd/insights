@@ -28,7 +28,7 @@ Only `extraction/` has a golden set today. `summary/` is verified qualitatively 
 
 ## The iteration loop
 
-1. **See a failure.** Either real output looks wrong, OR a new golden fails on the active prompt. For exploratory candidates, run `explore_edges.py` first to see actual behavior before encoding expectations.
+1. **See a failure** OR **proactively widen coverage.** Failure path: real output looks wrong, or a new golden fails on the active prompt — run `explore_edges.py` first to see actual behavior before encoding expectations. Coverage path: invoke the `edge-case-generator` sub-agent to propose new candidates by reading the existing goldens + active prompt and finding gaps. Either way, the next step is the same.
 2. **Add/update a golden** capturing the failure BEFORE editing the prompt. Makes the fix measurable and prevents future regressions.
 3. **Create a new version file** (`extraction/v1_3.py`). DO NOT edit a previous version — they're immutable so production traces stay reproducible. Set `VERSION = "extraction/v1.3"`. Copy the previous prompt, make the targeted change.
 4. **Point ACTIVE** at the new version in `extraction/__init__.py` (two lines: `ACTIVE_PROMPT`, `ACTIVE_VERSION`).
@@ -196,9 +196,26 @@ change the company should make. Do NOT return action items for praise,
 generic positive feedback, or vague suggestions without a clear ask.
 ```
 
+## The full generator → evaluator loop
+
+For proactive coverage improvement (not just reactive bug-fixing), the two sub-agents form a pipeline:
+
+```
+edge-case-generator → human review → append to goldens → prompt-evaluator → metric report
+                                                                                  │
+                                                                                  ▼
+                                                  pass    fail
+                                                   │       │
+                                                   ▼       ▼
+                                                commit   iterate prompt → loop
+```
+
+`edge-case-generator` reads the existing goldens + active prompt and emits JSONL candidates covering gaps it finds in the coverage taxonomy. It NEVER writes files — a human picks which candidates to keep. Selected lines get appended to `extraction.jsonl`. `prompt-evaluator` then runs the eval to see whether the live prompt already handles them. If everything still passes the baseline, the new goldens lock in current behavior; if anything fails, that's the signal to iterate the prompt (back to step 3 of the iteration loop).
+
 ## See also
 
 - `backend/CLAUDE.md` — overall backend conventions
 - `.claude/skills/llm-workflow/SKILL.md` — broader LLM call infrastructure (retries, cost tracking, tool use)
-- `.claude/agents/prompt-evaluator.md` — the sub-agent that runs the harness for you
+- `.claude/agents/edge-case-generator.md` — proposes new goldens (proposal half of the loop)
+- `.claude/agents/prompt-evaluator.md` — runs the eval against the active prompt (validation half)
 - `CASE_STUDIES.md` — incidents that informed prompt design (Case Study 7's loop-identity bug was prompt-adjacent — found via the eval-style observation pattern)

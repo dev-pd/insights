@@ -75,7 +75,7 @@ export function FeedbackTable({ items }: FeedbackTableProps) {
             <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 w-24 border-b">
               {feedbackCopy.table.columnTime}
             </th>
-            <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 w-32 border-b">
+            <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 w-44 border-b">
               {feedbackCopy.table.columnSentiment}
             </th>
             <th className="sticky top-0 z-10 bg-muted text-left font-medium text-muted-foreground px-3 py-2 hidden md:table-cell border-b">
