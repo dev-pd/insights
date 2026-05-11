@@ -1,25 +1,25 @@
 {
   "schema_version": 1,
-  "_comment": "Quality bars for the extraction eval harness. `--check` exits non-zero if any metric drops below its threshold. Thresholds are set ~5-10% below observed-at-baseline so flaky LLM variance doesn't false-positive — they're absolute floors, not the target. To raise the bar (because a new prompt observably beats the current numbers), update thresholds and observed_at_baseline together in one commit and document the diff in the commit message.",
+  "_comment": "Quality bars for the extraction eval harness. `--check` exits non-zero if any metric drops below its threshold. Thresholds are set ~5pp below observed-at-baseline so flaky LLM variance doesn't false-positive — they're absolute floors, not the target. To raise the bar (because a new prompt observably beats the current numbers), update thresholds and observed_at_baseline together in one commit and document the diff in the commit message.",
   "captured_at_baseline": {
-    "prompt_version": "extraction/v1.2",
+    "prompt_version": "extraction/v1.4",
     "model": "claude-haiku-4-5",
-    "n_cases": 20,
-    "date_utc": "2026-05-10"
+    "n_cases": 40,
+    "date_utc": "2026-05-11"
   },
   "thresholds": {
-    "sentiment_accuracy": 0.9,
+    "sentiment_accuracy": 0.95,
     "theme_subset_pass_rate": 0.85,
     "theme_count_pass_rate": 0.95,
-    "action_items_pass_rate": 0.9,
+    "action_items_pass_rate": 0.92,
     "language_accuracy": 0.95,
-    "overall_pass_rate": 0.8
+    "overall_pass_rate": 0.87
   },
   "observed_at_baseline": {
     "sentiment_accuracy": 1.0,
-    "theme_subset_pass_rate": 0.933,
+    "theme_subset_pass_rate": 0.92,
     "theme_count_pass_rate": 1.0,
-    "action_items_pass_rate": 0.95,
+    "action_items_pass_rate": 0.975,
     "language_accuracy": 1.0,
     "overall_pass_rate": 0.95
   }
