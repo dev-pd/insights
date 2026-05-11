@@ -47,8 +47,8 @@ zero, stop tuning and recompute upstream rate against the cap.
 
 ## What I'd add to the harness if this were long-lived
 
-- Golden set + evaluator for the summary prompt — extraction has one;
-  summary regressions are eyeballed today.
+- Golden set + evaluator for the summary prompt — only extraction
+  has one today.
 - `/prompt-bump` slash command — scaffold next version file, flip
   `ACTIVE_*`, print rebuild-both-images reminder.
 - `/golden-add` — accept/edit a candidate, append to golden JSONL.
@@ -63,4 +63,4 @@ zero, stop tuning and recompute upstream rate against the cap.
   pre-filled with prompt version + llm_metadata.
 
 **On hooks/slash commands:** none used. No recurring trigger or
-muscle-memory shortcut warranted them. Calling out per the PDF.
+shortcut warranted them. Calling out per the PDF.
