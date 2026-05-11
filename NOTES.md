@@ -37,13 +37,14 @@ skills (`backend-patterns`, `llm-workflow`) for duplicating CLAUDE.md.
 A subagent or skill earns its slot only when actually invoked AND
 non-trivial to inline. Speculative scaffolding is harness bloat.
 
-**The 429 retry-knob rabbit hole (Case Study 8).** 100-item burst left
-24 tasks `FAILED`. Knee-jerk: tune retries. Three tweaks shrank failures
-24 → 5, never to zero. Real fix: `CELERY_WORKER_CONCURRENCY=3 → 1`. Math
-from CS6 already said `3 × 2s × 1.5k tokens ≈ 90k tok/min vs 50k TPM
-cap`. Retries spread failures over time; they don't change the rate.
-Lesson: when retry-tuning shrinks failures monotonically but never to
-zero, stop tuning and recompute upstream rate against the cap.
+**The 429 retry-knob rabbit hole ([Case Study 8](./CASE_STUDIES.md#case-study-8--the-429-retry-knob-rabbit-hole-rediscovering-cs6-the-hard-way)).**
+100-item burst left 24 tasks `FAILED`. Knee-jerk: tune retries. Three
+tweaks shrank failures 24 → 5, never to zero. Real fix:
+`CELERY_WORKER_CONCURRENCY=3 → 1`. Math from [CS6](./CASE_STUDIES.md#case-study-6--anthropic-rate-limits-vs-worker-concurrency)
+already said `3 × 2s × 1.5k tokens ≈ 90k tok/min vs 50k TPM cap`.
+Retries spread failures over time; they don't change the rate. Lesson:
+when retry-tuning shrinks failures monotonically but never to zero,
+stop tuning and recompute upstream rate against the cap.
 
 ## What I'd add to the harness if this were long-lived
 
