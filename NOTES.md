@@ -27,13 +27,17 @@ Keeps CLAUDE.md tight without losing the "why."
 
 ## What didn't work, and what I changed
 
-**The Case Study 7 fix that wasn't a fix.** First attempt cached the
-Anthropic client keyed by `id(loop)`. Passed manual smoke test. A
-30-item stress run caught it: 29/30 tasks still emitted
-`llm_transient_retry`. CPython recycles addresses; `asyncio.run()` per
-task creates+closes+GCs a loop each time, so the new loop kept getting
-the same `id()`. Switched to `is`/`is not` and the warning rate hit
-zero. Lesson: declaring a fix needs evidence, not just "looks right."
+**The stress-tester subagent that earned nothing.** I built a 215-line
+`stress-tester.md` early — orchestrator for `stress_test.sh` +
+diagnostic SQL queries + cost gates. Never invoked it once across the
+build. Main Claude just ran the script and queries inline; the
+orchestration overhead was lower than spinning the agent up. Deleted it
+(commit `95a1708`). The same lesson surfaced when I dropped two
+speculative skills (`backend-patterns`, `llm-workflow`) for duplicating
+CLAUDE.md. A subagent or skill earns its slot only when actually
+invoked AND non-trivial to inline. Speculative scaffolding is harness
+bloat — and the same instinct that says "I might need this" is what
+fills the model's context with content it has to skim past every turn.
 
 **The 429 retry-knob rabbit hole (Case Study 8).** A 100-item burst
 left 24 tasks `FAILED`. Knee-jerk: tune retries. Three tweaks shrank
